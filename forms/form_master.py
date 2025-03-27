@@ -5,6 +5,7 @@ sys.path.append('d:/Python_Proyectos/INTER_C3')
 import util.generic as utl
 from forms.form_nuevoproceso import FormNuevoProceso
 from forms.form_paneldecontrol import FormPaneldeControl
+from forms.form_historial import FormHistorial
 
 COLOR_BARRA_SUPERIOR = "#1a1e23"  # Gris oscuro suave
 COLOR_MENU_LATERAL = "#1f3334"  # Verde azulado oscuro
@@ -79,7 +80,7 @@ class MasterPanel(ctk.CTk):
         # Botones del menú lateral
         buttons_info = [ 
             ("Nuevo proceso", "\uf144", self.abrir_nuevoproceso),  # 3 elements
-            ("Historial", "\uf07c", None),  # Add None for missing command
+            ("Historial", "\uf07c", self.abrir_historial),  # Add None for missing command
             ("Diagnóstico", "\uf044", None), 
             ("Panel de Control", "\uf080", self.abrir_paneldecontrol), 
             ("Monitoreo del Proceso", "\uf017", None) 
@@ -113,6 +114,10 @@ class MasterPanel(ctk.CTk):
     def abrir_paneldecontrol(self):
         self.limpiar_panel(self.cuerpo_principal)
         FormPaneldeControl(self.cuerpo_principal, self.predeterminada)
+
+    def abrir_historial(self):
+        self.limpiar_panel(self.cuerpo_principal)
+        FormHistorial(self.cuerpo_principal, self.predeterminada)
 
     def limpiar_panel(self, panel):
         for widget in panel.winfo_children():
