@@ -20,7 +20,7 @@ class FormPaneldeControl(ctk.CTkFrame):
             self.buttons1.append(button)
             self.entries1.append(entry)
 
-        # Frame 2: 9 botones (ON/OFF) con campos de entrada
+        # Frame 2
         self.frame2 = ctk.CTkFrame(self)
         self.frame2.pack(side='top', padx=10, pady=10, fill='both', expand=True)
 
@@ -34,7 +34,7 @@ class FormPaneldeControl(ctk.CTkFrame):
             self.buttons2.append(button)
             self.entries2.append(entry)
 
-        # Frame 3: 9 indicadores LED que reflejan el estado de los botones de los frames anteriores
+        # Frame 3
         self.frame3 = ctk.CTkFrame(self)
         self.frame3.pack(side='top', padx=10, pady=10, fill='both', expand=True)
         
@@ -44,7 +44,7 @@ class FormPaneldeControl(ctk.CTkFrame):
             led.grid(row=i, column=0, padx=5, pady=5)
             self.leds1.append(led)
 
-        # Frame 4: 3 indicadores LED y un slider para selección de modo
+        # Frame 4
         self.frame4 = ctk.CTkFrame(self)
         self.frame4.pack(side='top', padx=10, pady=10, fill='both', expand=True)
 
