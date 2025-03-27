@@ -1,0 +1,142 @@
+import customtkinter as ctk
+from tkinter import messagebox
+import sqlite3
+import sys
+sys.path.append('d:/Python_Proyectos/INTER_C3')
+import util.generic as utl
+from forms.form_master import MasterPanel
+
+# Función para crear la base de datos y la tabla de usuarios
+def inicializar_base_datos():
+    conn = sqlite3.connect("usuarios.db")
+    cursor = conn.cursor()
+
+    # Crear la tabla si no existe (SQL)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS usuarios (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        usuario TEXT NOT NULL UNIQUE,
+                        password TEXT NOT NULL)''')
+
+    conn.commit()
+    conn.close()
+
+# LOGIN
+class App:
+
+# En el código de la clase App, dentro de la función `verificar`:
+
+    def verificar(self):
+        usu = self.usuario.get()
+        password = self.password.get()
+
+        conn = sqlite3.connect("usuarios.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM usuarios WHERE usuario=? AND password=?", (usu, password))
+        resultado = cursor.fetchone()
+        conn.close()
+
+        if resultado:
+            self.ventana.withdraw()  # Ocultar la ventana en lugar de destruirla
+            master_panel = MasterPanel()  
+            master_panel.mainloop()  # Iniciar la nueva ventana
+            self.ventana.destroy()  # Cerrar la ventana de login después de que MasterPanel termine
+        else:
+            messagebox.showerror(message="Usuario o contraseña incorrectos", title="Error")
+
+
+    #def mostrar_panel_maestro(self):
+        #master_panel = MasterPanel()  # Instancia de la ventana principal
+        #master_panel.mainloop()  # Iniciar el mainloop en la ventana de MasterPanel
+    def mostrar_panel_maestro(self):
+        master_panel = MasterPanel()
+        master_panel.mainloop()  # Asegurar que la ventana principal se ejecute
+
+    def registrar_usuario(self):
+        usu = self.usuario_registro.get()
+        password = self.password_registro.get()
+
+        if not usu or not password:
+            messagebox.showwarning("Error", "Todos los campos son obligatorios")
+            return
+
+        conn = sqlite3.connect("usuarios.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM usuarios WHERE usuario=?", (usu,))
+        if cursor.fetchone():
+            messagebox.showwarning("Error", "El usuario ya existe")
+        else:
+            cursor.execute("INSERT INTO usuarios (usuario, password) VALUES (?, ?)", (usu, password))
+            conn.commit()
+            messagebox.showinfo("Éxito", "Usuario registrado exitosamente")
+            self.ventana_registro.destroy()
+
+        conn.close()
+
+    def mostrar_ventana_registro(self):
+        self.ventana_registro = ctk.CTkToplevel(self.ventana)
+        self.ventana_registro.title("Registrar usuario")
+        self.ventana_registro.geometry("400x300")
+
+        self.usuario_registro = ctk.CTkEntry(self.ventana_registro, placeholder_text="Usuario")
+        self.usuario_registro.pack(pady=10)
+        self.password_registro = ctk.CTkEntry(self.ventana_registro, placeholder_text="Contraseña", show="*")
+        self.password_registro.pack(pady=10)
+
+        registrar_btn = ctk.CTkButton(self.ventana_registro, text="Registrar", command=self.registrar_usuario, fg_color="#06918A")
+        registrar_btn.pack(pady=20)
+
+    def __init__(self):
+        inicializar_base_datos()
+
+        ctk.set_appearance_mode("light")
+        ctk.set_default_color_theme("green")
+
+        self.ventana = ctk.CTk()
+        self.ventana.title('Inicio de sesión')
+        self.ventana.geometry('800x500')
+        self.ventana.resizable(width=False, height=False)
+        utl.centrar_ventana(self.ventana, 800, 500)
+
+        # Frame del logo (lado izquierdo)
+        frame_logo = ctk.CTkFrame(self.ventana, width=400, corner_radius=0, fg_color="#06918A")  # Color personalizado
+        frame_logo.pack(side="left", expand=True, fill="both")
+
+        # Lectura del logo (puedes cambiar el logo si es necesario)
+        logo = utl.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/logo.png", (200, 200))
+        label_logo = ctk.CTkLabel(frame_logo, image=logo, text="")
+        label_logo.place(relx=0.5, rely=0.5, anchor="center")  # Centrar el logo
+
+        # Frame del formulario (lado derecho)
+        frame_form = ctk.CTkFrame(self.ventana, corner_radius=0)
+        frame_form.pack(side="right", expand=True, fill="both")
+
+        # Título del formulario (centrado horizontalmente)
+        title = ctk.CTkLabel(frame_form, 
+                            text="Sistema de Crecimiento\npor Epitaxia de\nHaces Moleculares", 
+                            font=ctk.CTkFont(size=25, weight="bold"), 
+                            justify="center")
+        title.pack(pady=30, padx=20, anchor="n")  # Centrado horizontal con "anchor" y espacio arriba con "pady"
+
+        # Campo de usuario
+        self.usuario = ctk.CTkEntry(frame_form, placeholder_text="Usuario", font=ctk.CTkFont(size=14))
+        self.usuario.pack(pady=10, padx=20, fill="x")
+
+        # Campo de contraseña
+        self.password = ctk.CTkEntry(frame_form, placeholder_text="Contraseña", font=ctk.CTkFont(size=14), show="*")
+        self.password.pack(pady=10, padx=20, fill="x")
+
+        # Botón de inicio de sesión
+        inicio = ctk.CTkButton(frame_form, text="Iniciar sesión", font=ctk.CTkFont(size=15, weight="bold"),
+                            command=self.verificar, fg_color="#06918A")
+        inicio.pack(pady=20, padx=20, fill="x")
+
+        # Botón para abrir ventana de registro
+        registro = ctk.CTkButton(frame_form, text="Registrarse", font=ctk.CTkFont(size=15), 
+                                command=self.mostrar_ventana_registro, fg_color="#06918A")
+        registro.pack(pady=10, padx=20, fill="x")
+
+
+        self.ventana.mainloop()
+
+if __name__ == "__main__":
+    App()
