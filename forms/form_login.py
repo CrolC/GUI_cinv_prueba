@@ -6,12 +6,12 @@ sys.path.append('d:/Python_Proyectos/INTER_C3')
 import util.generic as utl
 from forms.form_master import MasterPanel
 
-# Función para crear la base de datos y la tabla de usuarios
+# BASE DE DATOS
 def inicializar_base_datos():
     conn = sqlite3.connect("usuarios.db")
     cursor = conn.cursor()
 
-    # Crear la tabla si no existe (SQL)
+    # TABLA DE USUARIOS
     cursor.execute('''CREATE TABLE IF NOT EXISTS usuarios (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         usuario TEXT NOT NULL UNIQUE,
@@ -22,8 +22,6 @@ def inicializar_base_datos():
 
 # LOGIN
 class App:
-
-# En el código de la clase App, dentro de la función `verificar`:
 
     def verificar(self):
         usu = self.usuario.get()
@@ -36,21 +34,18 @@ class App:
         conn.close()
 
         if resultado:
-            self.ventana.withdraw()  # Ocultar la ventana en lugar de destruirla
+            self.ventana.withdraw()  # Oculta ventana en lugar de destruirla
             master_panel = MasterPanel()  
-            master_panel.mainloop()  # Iniciar la nueva ventana
+            master_panel.mainloop()  # Inicia la nueva ventana
             self.ventana.destroy()  # Cerrar la ventana de login después de que MasterPanel termine
         else:
             messagebox.showerror(message="Usuario o contraseña incorrectos", title="Error")
 
-
-    #def mostrar_panel_maestro(self):
-        #master_panel = MasterPanel()  # Instancia de la ventana principal
-        #master_panel.mainloop()  # Iniciar el mainloop en la ventana de MasterPanel
     def mostrar_panel_maestro(self):
         master_panel = MasterPanel()
-        master_panel.mainloop()  # Asegurar que la ventana principal se ejecute
+        master_panel.mainloop()  # Hace que el panel maestro sea la ventana principal
 
+    #REGISTRO DE NUEVO USUARIO
     def registrar_usuario(self):
         usu = self.usuario_registro.get()
         password = self.password_registro.get()
@@ -98,10 +93,10 @@ class App:
         utl.centrar_ventana(self.ventana, 800, 500)
 
         # Frame del logo (lado izquierdo)
-        frame_logo = ctk.CTkFrame(self.ventana, width=400, corner_radius=0, fg_color="#06918A")  # Color personalizado
+        frame_logo = ctk.CTkFrame(self.ventana, width=400, corner_radius=0, fg_color="#06918A")  
         frame_logo.pack(side="left", expand=True, fill="both")
 
-        # Lectura del logo (puedes cambiar el logo si es necesario)
+        # Lectura del logo
         logo = utl.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/logo.png", (200, 200))
         label_logo = ctk.CTkLabel(frame_logo, image=logo, text="")
         label_logo.place(relx=0.5, rely=0.5, anchor="center")  # Centrar el logo
@@ -110,12 +105,12 @@ class App:
         frame_form = ctk.CTkFrame(self.ventana, corner_radius=0)
         frame_form.pack(side="right", expand=True, fill="both")
 
-        # Título del formulario (centrado horizontalmente)
+        # Título del formulario
         title = ctk.CTkLabel(frame_form, 
                             text="Sistema de Crecimiento\npor Epitaxia de\nHaces Moleculares", 
                             font=ctk.CTkFont(size=25, weight="bold"), 
                             justify="center")
-        title.pack(pady=30, padx=20, anchor="n")  # Centrado horizontal con "anchor" y espacio arriba con "pady"
+        title.pack(pady=30, padx=20, anchor="n") 
 
         # Campo de usuario
         self.usuario = ctk.CTkEntry(frame_form, placeholder_text="Usuario", font=ctk.CTkFont(size=14))
