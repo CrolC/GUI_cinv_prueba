@@ -1,6 +1,6 @@
 import customtkinter as ctk
 import sys
-#from tkinter import font  # Importar tipografías si las necesitas
+#from tkinter import font  # tipografía
 sys.path.append('d:/Python_Proyectos/INTER_C3')
 import util.generic as utl
 from forms.form_nuevoproceso import FormNuevoProceso
@@ -9,15 +9,15 @@ from forms.form_historial import FormHistorial
 
 COLOR_BARRA_SUPERIOR = "#1a1e23"  # Gris oscuro suave
 COLOR_MENU_LATERAL = "#1f3334"  # Verde azulado oscuro
-COLOR_CUERPO_PRINCIPAL = "#f4f8f7"  # Blanco roto con toque gris
+COLOR_CUERPO_PRINCIPAL = "#f4f8f7"  # Blanco con toque gris
 COLOR_MENU_CURSOR_ENCIMA = "#18a9b1"  # Azul verdoso claro
 
 
 class MasterPanel(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.config_window()  # Crear la ventana primero
-        self.logo = utl.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/logocinves_bco.png", size=(400, 136))  # Cargar la imagen después
+        self.config_window() 
+        self.logo = utl.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/logocinves_bco.png", size=(400, 136))  
         self.perfil = utl.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/Perfil.png", size=(100, 100))
         self.predeterminada = utl.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/predeterm.png", size=(300, 100))
         self.paneles()
@@ -33,7 +33,8 @@ class MasterPanel(ctk.CTk):
         utl.centrar_ventana(self, w, h)  
 
     def paneles(self):
-        # Crear paneles: barra superior, menú lateral y cuerpo principal
+        
+        # FRAMES PRINCIPALES: barra superior, menú lateral y cuerpo principal
         self.barra_superior = ctk.CTkFrame(self, fg_color=COLOR_BARRA_SUPERIOR, height=50)
         self.barra_superior.pack(side=ctk.TOP, fill='both')
 
@@ -46,19 +47,19 @@ class MasterPanel(ctk.CTk):
     def controles_barra_superior(self):
         font_awesome = ctk.CTkFont(family="FontAwesome", size=12)
 
-        # Etiqueta de título
+        #TITULO
         self.labelTitulo = ctk.CTkLabel(
             self.barra_superior, text="Sistema MBE",
             text_color="white", font=ctk.CTkFont(family="Roboto", size=15))
         self.labelTitulo.pack(side=ctk.LEFT, padx=10, pady=10)
 
-        # Botón del menú lateral
+        # DESPLIEGUE MENU LATERAL
         self.buttonMenuLateral = ctk.CTkButton(
             self.barra_superior, text="\uf022", font=font_awesome,
             command=self.toggle_panel, fg_color=COLOR_BARRA_SUPERIOR, text_color="white")
         self.buttonMenuLateral.pack(side=ctk.LEFT, padx=5)
 
-        # Etiqueta de información
+        # INFORMACION SUP DERECHA
         self.labelInfo = ctk.CTkLabel(
             self.barra_superior, text="Crecimiento por Epitaxia de Haces Moleculares",
             text_color="white", font=ctk.CTkFont(family="Roboto", size=10))
@@ -70,34 +71,33 @@ class MasterPanel(ctk.CTk):
 
         font_awesome = ctk.CTkFont(family="FontAwesome", size=15)
 
-        # Etiqueta de perfil
-        if self.perfil:  # Check if the image was loaded successfully
+        # IMAGEN DE USUARIO
+        if self.perfil:  
             self.labelPerfil = ctk.CTkLabel(self.menu_lateral, image=self.perfil, text="", fg_color=COLOR_MENU_LATERAL)
         else:
             self.labelPerfil = ctk.CTkLabel(self.menu_lateral, text="Perfil", fg_color=COLOR_MENU_LATERAL)
         self.labelPerfil.pack(side=ctk.TOP, pady=10)
 
-        # Botones del menú lateral
+        # BOTONES MENU DESPLEGABLE
         buttons_info = [ 
-            ("Nuevo proceso", "\uf144", self.abrir_nuevoproceso),  # 3 elements
-            ("Historial", "\uf07c", self.abrir_historial),  # Add None for missing command
+            ("Nuevo proceso", "\uf144", self.abrir_nuevoproceso),  
+            ("Historial", "\uf07c", self.abrir_historial), 
             ("Diagnóstico", "\uf044", None), 
             ("Panel de Control", "\uf080", self.abrir_paneldecontrol), 
             ("Monitoreo del Proceso", "\uf017", None) 
         ]
 
-        for text, icon, command in buttons_info:  # Unpack 3 elements
+        for text, icon, command in buttons_info:  
             button = ctk.CTkButton(
                 self.menu_lateral, text=f"  {icon}    {text}",
                 font=font_awesome, anchor="w",
                 fg_color=COLOR_MENU_LATERAL, text_color="white",
                 hover_color=COLOR_MENU_CURSOR_ENCIMA,
-                command=command  # Use the command if provided
+                command=command  
             )
             button.pack(side=ctk.TOP, fill="x", padx=5, pady=5)
 
     def controles_cuerpo(self):
-        # Imagen en el cuerpo principal
         label = ctk.CTkLabel(self.cuerpo_principal, image=self.logo, text="", fg_color=COLOR_CUERPO_PRINCIPAL)
         label.place(x=0, y=0, relwidth=1, relheight=1)
 
@@ -105,20 +105,27 @@ class MasterPanel(ctk.CTk):
         if self.menu_lateral.winfo_ismapped():
             self.menu_lateral.pack_forget()
         else:
-            self.menu_lateral.pack(side=ctk.LEFT, fill='both', expand=False)  # Restore original layout
+            self.menu_lateral.pack(side=ctk.LEFT, fill='both', expand=False)  
 
+
+    ##FUNCIONES DE LOS BOTONES DEL MENU LATERAL
+
+    #P Nuevo proceso
     def abrir_nuevoproceso(self):
         self.limpiar_panel(self.cuerpo_principal)
         FormNuevoProceso(self.cuerpo_principal, self.predeterminada)
 
+    #P Panel de control
     def abrir_paneldecontrol(self):
         self.limpiar_panel(self.cuerpo_principal)
         FormPaneldeControl(self.cuerpo_principal, self.predeterminada)
 
+    #P Historial
     def abrir_historial(self):
         self.limpiar_panel(self.cuerpo_principal)
         FormHistorial(self.cuerpo_principal, self.predeterminada)
 
+    #G limpiar panel
     def limpiar_panel(self, panel):
         for widget in panel.winfo_children():
             widget.destroy()
