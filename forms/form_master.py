@@ -17,7 +17,7 @@ class MasterPanel(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.config_window() 
-        self.logo = utl.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/logocinves_bco.png", size=(400, 136))  
+        self.logo = utl.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/logocinves_predeterm.png", size=(400, 136))  
         self.perfil = utl.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/Perfil.png", size=(100, 100))
         self.predeterminada = utl.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/predeterm.png", size=(300, 100))
         self.paneles()
