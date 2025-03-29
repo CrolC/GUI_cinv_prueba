@@ -130,6 +130,6 @@ class MasterPanel(ctk.CTk):
         for widget in panel.winfo_children():
             widget.destroy()
 
-if __name__ == "__main__":
-    app = MasterPanel()
-    app.mainloop()
+#if __name__ == "__main__":
+ #   app = MasterPanel()
+  #  app.mainloop()

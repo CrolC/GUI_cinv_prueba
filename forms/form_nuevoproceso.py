@@ -17,21 +17,12 @@ class FormNuevoProceso(ctk.CTk):
         self.barra_inferior = ctk.CTkFrame(panel_principal)
         self.barra_inferior.pack(side=ctk.BOTTOM, fill='both', expand=True)
 
-        # Título de la ventana
-        #self.labelTitulo = ctk.CTkLabel(self.barra_superior, text="En construcción", text_color="black", font=ctk.CTkFont(family="Roboto", size=15))
-        #self.labelTitulo.pack(side=ctk.TOP, pady=10)
-
-        # Imagen en la parte inferior
-        #self.label_imagen = ctk.CTkLabel(self.barra_inferior, image=logo, text="")
-        #self.label_imagen.place(x=0, y=0, relwidth=1, relheight=1)
-        #self.label_imagen.config(bg=COLOR_CUERPO_PRINCIPAL)
-
-        tabview = ctk.CTkTabview(master=self.barra_superior)#FormNuevoProceso)
+        tabview = ctk.CTkTabview(master=self.barra_superior)
         tabview.pack(padx=20, pady=20)
 
-        tabview.add("Fase 1")  # add tab at the end
-        tabview.add("Fase 2")  # add tab at the end
-        tabview.set("Fase 2")  # set currently visible tab
+        tabview.add("Fase 1")  
+        tabview.add("Fase 2") 
+        tabview.set("Fase 2")  
 
         botonA = ctk.CTkButton(master=tabview.tab("Fase 1") )
         botonA.pack(padx=20, pady=20)
