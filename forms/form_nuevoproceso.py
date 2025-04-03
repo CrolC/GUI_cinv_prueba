@@ -35,6 +35,9 @@ class FormNuevoProceso(ctk.CTk):
         self.reiniciar_btn = ctk.CTkButton(self.botones_generales_frame, text="Reiniciar Rutina", fg_color="#D9534F")
         self.reiniciar_btn.pack(side="right", padx=5, pady=5)
 
+    def validar_entrada(self, text):
+        return text.isdigit() and len(text) <= 4
+
     def agregar_fase(self, nombre_fase=None):
         """ Agrega una nueva pestaña al Tabview """
         if nombre_fase is None:
@@ -46,15 +49,28 @@ class FormNuevoProceso(ctk.CTk):
         frame_fase = ctk.CTkFrame(self.tabview.tab(nombre_fase))
         frame_fase.pack(fill="both", expand=True, padx=10, pady=10)
 
-        for i in range(1, 10):  # Crear 9 válvulas
+        validar_cmd = self.register(self.validar_entrada)
+
+        elementos = ["Al", "As", "Ga", "I", "N", "Mn", "Be", "Mg", "Si"]
+
+        header = ctk.CTkFrame(frame_fase)
+        header.pack(fill="x", padx=5, pady=2)
+
+        ctk.CTkLabel(header, text="Válvula", width=80).pack(side="left", padx=5)
+        ctk.CTkLabel(header, text="Apertura", width=50).pack(side="left", padx=5)
+        ctk.CTkLabel(header, text="Cierre", width=50).pack(side="left", padx=5)
+        ctk.CTkLabel(header, text="Ciclos", width=50).pack(side="left", padx=5)
+
+        for i, elemento in enumerate(elementos):  # Crear 9 válvulas
             fila = ctk.CTkFrame(frame_fase)
             fila.pack(fill="x", padx=5, pady=2)
 
-            switch = ctk.CTkSwitch(fila, text=str(i))
+            switch = ctk.CTkSwitch(fila, text=elemento)
             switch.pack(side="left", padx=5)
 
             for _ in range(3):  # Campos de apertura, cierre y ciclos deseados
-                entry = ctk.CTkEntry(fila, width=50, placeholder_text="####")
+                entry = ctk.CTkEntry(fila, width=50, placeholder_text="####", validate="key", validatecommand=(validar_cmd, "%P"))
+                entry.configure(justify='center')
                 entry.pack(side="left", padx=5)
 
         # Frame de botones de fase
