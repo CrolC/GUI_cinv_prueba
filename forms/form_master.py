@@ -18,10 +18,11 @@ class MasterPanel(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.config_window()
-        
-        self.logo = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/logocinves_predeterm.png", (400, 136))
-        self.perfil = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/Perfil.png", (100, 100))
-        self.predeterminada = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/predeterm.png", (300, 100))
+
+
+        self.logo = self.leer_imagen(r"d:/Python_Proyectos/INTER_C3/imagenes/logocinves_predeterm.png", (400, 136))
+        self.perfil = self.leer_imagen(r"d:/Python_Proyectos/INTER_C3/imagenes/Perfil.png", (100, 100))
+        self.predeterminada = self.leer_imagen(r"d:/Python_Proyectos/INTER_C3/imagenes/predeterm.png", (300, 100))
         
         self.paneles()
         self.controles_barra_superior()
@@ -35,8 +36,9 @@ class MasterPanel(ctk.CTk):
             return ctk.CTkImage(pil_image, size=size)
         except Exception as e:
             print(f"Error al cargar la imagen: {e}")
-            return None
-    
+            #return None
+            return ctk.CTkImage(Image.new('RGB', size, (255, 255, 255)), size=size)  # Imagen en blanco por defecto
+
     def centrar_ventana(self, aplicacion_ancho, aplicacion_largo):
         pantall_ancho = self.winfo_screenwidth()
         pantall_largo = self.winfo_screenheight()
