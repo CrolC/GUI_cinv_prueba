@@ -23,11 +23,17 @@ class MasterPanel(ctk.CTk):
         self.logo = self.leer_imagen(r"d:/Python_Proyectos/INTER_C3/imagenes/logocinves_predeterm.png", (400, 136))
         self.perfil = self.leer_imagen(r"d:/Python_Proyectos/INTER_C3/imagenes/Perfil.png", (100, 100))
         self.predeterminada = self.leer_imagen(r"d:/Python_Proyectos/INTER_C3/imagenes/predeterm.png", (300, 100))
+
+        #print(self.image_names()) 
         
         self.paneles()
         self.controles_barra_superior()
         self.controles_menu_lateral()
         self.controles_cuerpo()
+
+    #def image_names(self):
+    #    return [img._path if hasattr(img, "_path") else "Imagen sin ruta" for img in [self.logo, self.perfil, self.predeterminada]]
+        
 
     def leer_imagen(self, path, size): 
         try:
