@@ -4,8 +4,8 @@ from PIL import Image, ImageTk
 sys.path.append('d:/Python_Proyectos/INTER_C3')
 import util.generic as utl
 
-
-class FormMonitoreo(ctk.CTkFrame):
+#ERROR EN IMAGEN
+class FormMonitoreo(ctk.CTk):
     
     def __init__(self, panel_principal, icono):
         super().__init__()
