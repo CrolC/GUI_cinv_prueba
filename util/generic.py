@@ -2,20 +2,6 @@ import customtkinter as ctk
 from PIL import Image
 import tkinter as tk
 
-#def leer_imagen(path, size): 
- #   pil_image = Image.open(path).resize(size, Image.LANCZOS)
-  #  return ctk.CTkImage(pil_image)  
-
-#def leer_imagen(path, size): #EL ULTIMO QUE FUNCIONO
-#    pil_image = Image.open(path)
-#    pil_image = pil_image.resize(size, Image.LANCZOS)  # Usa LANCZOS para mejor calidad
-#    return ctk.CTkImage(pil_image, size=size)  # Asegura que el tamaño se respete
-
-#def leer_imagen(path, size): 
-#    pil_image = Image.open(path)  # Abre la imagen original
-#    pil_image = pil_image.resize(size, Image.LANCZOS)  
-#    return ctk.CTkImage(light_image=pil_image, size=size)  
-
 def leer_imagen(path, size): 
     try:
         pil_image = Image.open(path)

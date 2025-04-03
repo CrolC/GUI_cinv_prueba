@@ -1,61 +1,69 @@
 import customtkinter as ctk
 from tkinter import messagebox
 from fpdf import FPDF
-from docx import Document
 import pandas as pd
 import sys
 import tkinter.font as tkFont  
+
 sys.path.append('d:/Python_Proyectos/INTER_C3')
 import util.generic as utl
 
 
 class FormHistorial(ctk.CTk):
     
-    def __init__(self,panel_principal, icono):
+    def __init__(self, panel_principal, icono):
         super().__init__()
 
-        self.title("Generar Reporte")
-        self.geometry("300x200")
+        try:
+            self.title("Generar Reporte")
+            self.geometry("300x200")
 
-        self.font_awesome = tkFont.Font(family="FontAwesome", size=16)
+            # Botón "Generar Reporte"
+            self.generate_report_button = ctk.CTkButton(self, text="Generar reporte",
+                                                        command=self.generate_report)
+            self.generate_report_button.pack(pady=20)
 
-        # BOTÓN REPORTE
-        self.generate_report_button = ctk.CTkButton(self, text="\uf07c",  # Ícono 
-                                                    font=self.font_awesome,  #fuente= FontAwesome
-                                                    command=self.generate_report)
-        self.generate_report_button.pack(pady=20)
+        except Exception as e:
+            print(f"Error al inicializar la ventana: {e}")
+            messagebox.showerror("Error", "No se pudo abrir la ventana de historial.")
 
     def generate_report(self):
-        
-        file_format = "PDF"  # formato prueba
+        try:
+            file_format = "PDF"  # Formato de prueba
 
-        if file_format == "PDF":
-            self.generate_pdf_report()
-        elif file_format == "DOC":
-            self.generate_doc_report()
-        elif file_format == "Excel":
-            self.generate_excel_report()
+            if file_format == "PDF":
+                self.generate_pdf_report()
+            elif file_format == "Excel":
+                self.generate_excel_report()
+            else:
+                messagebox.showwarning("Formato no soportado", "Seleccione un formato válido.")
+
+        except Exception as e:
+            print(f"Error al generar el reporte: {e}")
+            messagebox.showerror("Error", "No se pudo generar el reporte.")
 
     def generate_pdf_report(self):
-        # PDF (ejemplo)
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        pdf.cell(200, 10, txt="Reporte Generado", ln=True, align="C")
-        pdf.output("reporte.pdf")
-        messagebox.showinfo("Reporte", "PDF generado exitosamente.")
+        try:
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
+            pdf.cell(200, 10, txt="Reporte Generado", ln=True, align="C")
+            pdf.output("reporte.pdf")
+            messagebox.showinfo("Reporte", "PDF generado exitosamente.")
 
-    def generate_doc_report(self):
-        # DOC (info ejemplo)
-        doc = Document()
-        doc.add_heading('Reporte Generado', 0)
-        doc.add_paragraph('Este es un reporte generado en formato Word.')
-        doc.save("reporte.docx")
-        messagebox.showinfo("Reporte", "Documento DOC generado exitosamente.")
+        except Exception as e:
+            print(f"Error al generar el PDF: {e}")
+            messagebox.showerror("Error", "No se pudo generar el archivo PDF.")
 
     def generate_excel_report(self):
-        # Excel (ejemplo)
-        data = {'Columna 1': [1, 2, 3], 'Columna 2': [4, 5, 6]}
-        df = pd.DataFrame(data)
-        df.to_excel("reporte.xlsx", index=False)
-        messagebox.showinfo("Reporte", "Archivo Excel generado exitosamente.")
+        try:
+            data = {'Columna 1': [1, 2, 3], 'Columna 2': [4, 5, 6]}
+            df = pd.DataFrame(data)
+            df.to_excel("reporte.xlsx", index=False)
+            messagebox.showinfo("Reporte", "Archivo Excel generado exitosamente.")
+
+        except Exception as e:
+            print(f"Error al generar el Excel: {e}")
+            messagebox.showerror("Error", "No se pudo generar el archivo Excel.")
+
+
