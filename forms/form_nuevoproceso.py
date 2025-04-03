@@ -1,4 +1,4 @@
-import customtkinter as ctk
+import customtkinter as ctk 
 import sys
 sys.path.append('d:/Python_Proyectos/INTER_C3')
 import util.generic as utl
@@ -10,31 +10,42 @@ class FormNuevoProceso(ctk.CTk):
     def __init__(self, panel_principal, logo):
         super().__init__()
 
-        # Subdivisión de la ventana
-        self.barra_superior = ctk.CTkFrame(panel_principal)
-        self.barra_superior.pack(side=ctk.TOP, fill=ctk.X, expand=False)
+        self.fase_contador = 1  # Inicia con solo una fase
 
-        self.barra_inferior = ctk.CTkFrame(panel_principal)
-        self.barra_inferior.pack(side=ctk.BOTTOM, fill='both', expand=True)
+        # Frame scrolleable
+        self.scrollable_frame = ctk.CTkScrollableFrame(panel_principal)
+        self.scrollable_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        tabview = ctk.CTkTabview(master=self.barra_superior)
-        tabview.pack(padx=20, pady=20)
+        # Tabview con solo una pestaña inicial
+        self.tabview = ctk.CTkTabview(master=self.scrollable_frame)
+        self.tabview.pack(padx=20, pady=20, fill="both", expand=True)
 
-        tabview.add("Fase 1")  
-        tabview.add("Fase 2") 
-        tabview.set("Fase 2")  
+        self.agregar_fase("Fase 1")  # Inicia con la primera fase
 
-        botonA = ctk.CTkButton(master=tabview.tab("Fase 1") )
-        botonA.pack(padx=20, pady=20)
-        botonA.configure(text="Nueva Fase", fg_color="#06918A")
+    def agregar_fase(self, nombre_fase=None):
+        """ Agrega una nueva pestaña al Tabview con botones para agregar/eliminar """
+        if nombre_fase is None:
+            self.fase_contador += 1
+            nombre_fase = f"Fase {self.fase_contador}"
 
-        botonC = ctk.CTkButton(master=tabview.tab("Fase 1") )
-        botonC.pack(padx=20, pady=20)
-        botonC.configure(text="Fase 2", fg_color="#06918A")
-        
-        botonB = ctk.CTkButton(master=tabview.tab("Fase 2"))
-        botonB.pack(padx=20, pady=20)
-        botonB.configure(text="Fase 1", fg_color="#06918A")
+        self.tabview.add(nombre_fase)
 
+        # Botón para agregar nueva fase
+        boton_agregar = ctk.CTkButton(master=self.tabview.tab(nombre_fase), text="Agregar Fase", fg_color="#06918A", 
+                                      command=self.agregar_fase)
+        boton_agregar.pack(padx=20, pady=10)
 
-    
+        # Botón para eliminar esta fase
+        boton_eliminar = ctk.CTkButton(master=self.tabview.tab(nombre_fase), text="Eliminar Fase", fg_color="#D9534F", 
+                                       command=lambda: self.eliminar_fase(nombre_fase))
+        boton_eliminar.pack(padx=20, pady=10)
+
+        # Cambiar a la nueva pestaña creada
+        self.tabview.set(nombre_fase)
+
+    def eliminar_fase(self, nombre_fase):
+        """ Elimina una pestaña si hay más de una """
+        if len(self.tabview._name_list) > 1:  # Verifica que no sea la última pestaña
+            self.tabview.delete(nombre_fase)
+        else:
+            print("No puedes eliminar la última fase")

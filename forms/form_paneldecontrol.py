@@ -1,13 +1,13 @@
 import customtkinter as ctk
 
 
-class FormPaneldeControl(ctk.CTkFrame):
+class FormPaneldeControl(ctk.CTkScrollableFrame):
     def __init__(self, panel_principal, predeterminada):
         super().__init__(panel_principal)
         self.predeterminada = predeterminada
         
         # Frame 1
-        self.frame1 = ctk.CTkFrame(self)
+        self.frame1 = ctk.CTkScrollableFrame(self)
         self.frame1.pack(side='top', padx=10, pady=10, fill='both', expand=True)
         
         self.buttons1 = []
@@ -21,7 +21,7 @@ class FormPaneldeControl(ctk.CTkFrame):
             self.entries1.append(entry)
 
         # Frame 2
-        self.frame2 = ctk.CTkFrame(self)
+        self.frame2 = ctk.CTkScrollableFrame(self)
         self.frame2.pack(side='top', padx=10, pady=10, fill='both', expand=True)
 
         self.buttons2 = []
@@ -35,7 +35,7 @@ class FormPaneldeControl(ctk.CTkFrame):
             self.entries2.append(entry)
 
         # Frame 3
-        self.frame3 = ctk.CTkFrame(self)
+        self.frame3 = ctk.CTkScrollableFrame(self)
         self.frame3.pack(side='top', padx=10, pady=10, fill='both', expand=True)
         
         self.leds1 = []
@@ -45,7 +45,7 @@ class FormPaneldeControl(ctk.CTkFrame):
             self.leds1.append(led)
 
         # Frame 4
-        self.frame4 = ctk.CTkFrame(self)
+        self.frame4 = ctk.CTkScrollableFrame(self)
         self.frame4.pack(side='top', padx=10, pady=10, fill='both', expand=True)
 
         self.mode_leds = []

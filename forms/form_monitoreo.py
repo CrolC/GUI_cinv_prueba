@@ -5,7 +5,7 @@ sys.path.append('d:/Python_Proyectos/INTER_C3')
 import util.generic as utl
 
 
-class FormMonitoreo(ctk.CTk):
+class FormMonitoreo(ctk.CTkFrame):
     
     def __init__(self, panel_principal, icono):
         super().__init__()
