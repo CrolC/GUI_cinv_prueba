@@ -29,7 +29,7 @@ class FormHistorial(ctk.CTkScrollableFrame):
 
     def generate_report(self):
         try:
-            file_format = "PDF"  # Formato de prueba
+            file_format = "PDF"  # Formato de prueba 1
 
             if file_format == "PDF":
                 self.generate_pdf_report()
