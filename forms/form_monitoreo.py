@@ -23,7 +23,7 @@ class FormMonitoreo(ctk.CTk):
         
         # Cargar imagen
         try:
-            imagen = utl.leer_imagen("D:\Python_Proyectos\INTER_C3\imagenes\MBE_blender_camaracrecimiento.png", size=(300, 100))
+            imagen = utl.leer_imagen(r"D:\Python_Proyectos\INTER_C3\imagenes\MBE_blender_camaracrecimiento.png", size=(300, 100))
             self.label_imagen = ctk.CTkLabel(self.frame_principal, image=imagen, text="")
             self.label_imagen.pack(pady=10)
         except Exception as e:
