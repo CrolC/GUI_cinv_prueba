@@ -1,82 +1,69 @@
 import customtkinter as ctk
 import sys
-from PIL import Image, ImageTk
-sys.path.append('d:/Python_Proyectos/INTER_C3')
-import util.generic as utl
+import time
 
 class FormDiagnostico(ctk.CTkScrollableFrame):
     def __init__(self, panel_principal, predeterminada):
         super().__init__(panel_principal)
         self.predeterminada = predeterminada
 
-        # Elementos para el estado de las válvulas
-        frame_valvulas = ctk.CTkFrame(self)
-        frame_valvulas.pack(pady=10, padx=10, fill='both', expand=True)
-        ctk.CTkLabel(frame_valvulas, text='ESTADO DE LAS VÁLVULAS', fg_color='gray', corner_radius=5).pack(fill='x')
+        self.valvulas_activas = {}  # Diccionario para guardar valvulas y sus tiempos
 
-        elementos = ["Al", "As", "Ga", "I", "N", "Mn", "Be", "Mg", "Si"]
+        # FRAME 1: Estado del Sistema
+        self.frame_estado = ctk.CTkFrame(self)
+        self.frame_estado.pack(pady=10, padx=10, fill='x')
 
-        for i, elemento in enumerate(elementos):
-            fila = ctk.CTkFrame(frame_valvulas)
-            fila.pack(fill='x', padx=5, pady=2)
+        ctk.CTkLabel(self.frame_estado, text='ESTADO DEL SISTEMA', fg_color='gray', corner_radius=5).pack(fill='x')
 
-            ctk.CTkLabel(fila, text=elemento, width=50).pack(side='left', padx=5)
-            entry = ctk.CTkEntry(fila, width=50, placeholder_text='####')
-            entry.pack(side='left', padx=5)
-            
-            indicador_activo = ctk.CTkLabel(fila, text='●', fg_color='green', width=20)
-            indicador_activo.pack(side='left', padx=5)
-            indicador_inactivo = ctk.CTkLabel(fila, text='●', fg_color='gray', width=20)
-            indicador_inactivo.pack(side='left', padx=5)
-
-        # Estado del Microcontrolador
-        frame_micro = ctk.CTkFrame(self)
-        frame_micro.pack(pady=10, padx=10, fill='both', expand=True)
-        ctk.CTkLabel(frame_micro, text='ESTADO DEL MICROCONTROLADOR', fg_color='gray', corner_radius=5).pack(fill='x')
-        
-        self.estado_micro = ctk.CTkLabel(frame_micro, text='FUNCIONAMIENTO ÓPTIMO', fg_color='green', corner_radius=5)
+        self.estado_micro = ctk.CTkLabel(self.frame_estado, text='FUNCIONAMIENTO ÓPTIMO', fg_color='green', corner_radius=5)
         self.estado_micro.pack(pady=5)
 
-        # Semáforo del microcontrolador
-        self.semaforo_micro = ctk.CTkLabel(frame_micro, text='●', fg_color='green', width=20)
-        self.semaforo_micro.pack()
+        self.estado_comunicacion = ctk.CTkLabel(self.frame_estado, text='COMUNICACIÓN ESTABLE', fg_color='green', corner_radius=5)
+        self.estado_comunicacion.pack(pady=5)
 
-        # Estado del Proceso
-        frame_proceso = ctk.CTkFrame(self)
-        frame_proceso.pack(pady=10, padx=10, fill='both', expand=True)
-        ctk.CTkLabel(frame_proceso, text='ESTADO DEL PROCESO', fg_color='gray', corner_radius=5).pack(fill='x')
-        
-        self.estado_proceso = ctk.CTkLabel(frame_proceso, text='🟡 ESPERANDO EJECUCIÓN DE RUTINA...', fg_color='yellow', corner_radius=5)
-        self.estado_proceso.pack(pady=5)
-        
-        self.modo_label = ctk.CTkLabel(frame_proceso, text='MODO: AUTOMÁTICO')
-        self.modo_label.pack()
-        
-        self.semaforo_proceso = ctk.CTkLabel(frame_proceso, text='●', fg_color='yellow', width=20)
-        self.semaforo_proceso.pack()
+        # FRAME 2: Válvulas Activas
+        self.frame_valvulas = ctk.CTkFrame(self)
+        self.frame_valvulas.pack(pady=10, padx=10, fill='both', expand=True)
 
-    def actualizar_estado_micro(self, estado):
-        estados = {
-            "optimo": ("FUNCIONAMIENTO ÓPTIMO", "green"),
-            "falla_com": ("FALLA DE COMUNICACIÓN", "yellow"),
-            "falla_micro": ("FALLA EN MICROCONTROLADOR", "red")
-        }
-        if estado in estados:
-            texto, color = estados[estado]
-            self.estado_micro.configure(text=texto, fg_color=color)
-            self.semaforo_micro.configure(fg_color=color)
-    
-    def actualizar_estado_proceso(self, modo, estado):
-        modos = {"manual": "MODO: MANUAL", "automatico": "MODO: AUTOMÁTICO"}
-        estados = {
-            "espera": ("🟡 ESPERANDO EJECUCIÓN DE RUTINA...", "yellow"),
-            "ejecucion": ("🟢 RUTINA EN EJECUCIÓN", "green"),
-            "finalizado": ("🔴 RUTINA FINALIZADA", "red")
-        }
-        
-        if modo in modos:
-            self.modo_label.configure(text=modos[modo])
-        if estado in estados:
-            texto, color = estados[estado]
-            self.estado_proceso.configure(text=texto, fg_color=color)
-            self.semaforo_proceso.configure(fg_color=color)
+        ctk.CTkLabel(self.frame_valvulas, text='VÁLVULAS ACTIVAS', fg_color='gray', corner_radius=5).pack(fill='x')
+
+        self.valvula_widgets = {}  # Almacena widgets por válvula
+
+        # Iniciar actualización del contador
+        self.actualizar_tiempos()
+
+    def agregar_valvula_activa(self, nombre_valvula):
+        if nombre_valvula not in self.valvulas_activas:
+            self.valvulas_activas[nombre_valvula] = time.time()
+
+            frame = ctk.CTkFrame(self.frame_valvulas)
+            frame.pack(fill='x', padx=5, pady=2)
+
+            lbl_nombre = ctk.CTkLabel(frame, text=nombre_valvula, width=100)
+            lbl_nombre.pack(side='left', padx=5)
+
+            lbl_estado = ctk.CTkLabel(frame, text='ACTIVA', fg_color='green', corner_radius=5, width=100)
+            lbl_estado.pack(side='left', padx=5)
+
+            lbl_tiempo = ctk.CTkLabel(frame, text='00:00', width=100)
+            lbl_tiempo.pack(side='left', padx=5)
+
+            self.valvula_widgets[nombre_valvula] = lbl_tiempo
+
+    def actualizar_tiempos(self):
+        now = time.time()
+        for nombre, inicio in self.valvulas_activas.items():
+            tiempo_segundos = int(now - inicio)
+            minutos = tiempo_segundos // 60
+            segundos = tiempo_segundos % 60
+            tiempo_str = f"{minutos:02}:{segundos:02}"
+            if nombre in self.valvula_widgets:
+                self.valvula_widgets[nombre].configure(text=tiempo_str)
+
+        self.after(1000, self.actualizar_tiempos)
+
+    def actualizar_estado_micro(self, texto, color="green"):
+        self.estado_micro.configure(text=texto, fg_color=color)
+
+    def actualizar_estado_comunicacion(self, texto, color="green"):
+        self.estado_comunicacion.configure(text=texto, fg_color=color)
