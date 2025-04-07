@@ -134,16 +134,19 @@ class MasterPanel(ctk.CTk):
         FormPaneldeControl(self.cuerpo_principal, self.predeterminada)
     
     def abrir_historial(self):
+        print("Abriendo panel de historial...")
         self.limpiar_panel(self.cuerpo_principal)
         FormHistorial(self.cuerpo_principal, self.predeterminada)
 
     #P Monitoreo del proceso
     def abrir_monitoreo(self):
+        print("Abriendo panel de monitoreo...")
         self.limpiar_panel(self.cuerpo_principal)
         FormMonitoreo(self.cuerpo_principal, self.predeterminada)
 
     #P Diagnostico
     def abrir_diagnostico(self):
+        print("Abriendo panel de diagnostico...")
         self.limpiar_panel(self.cuerpo_principal)
         FormDiagnostico(self.cuerpo_principal, self.predeterminada)
     
