@@ -2,6 +2,7 @@ import customtkinter as ctk
 from PIL import Image
 import tkinter as tk
 
+#Metodo de lectura de imagenes (ERROR DESCONOCIDO)
 def leer_imagen(path, size): 
     try:
         pil_image = Image.open(path)
