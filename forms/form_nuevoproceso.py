@@ -197,7 +197,8 @@ class FormNuevoProceso(ctk.CTk):
                         cadenas.append(cadena)
 
                 if cadenas:
-                    cadenas_fases.append("&".join(cadenas))
+                    fase_cadena = "".join(cadenas)  
+                    cadenas_fases.append(fase_cadena)
 
             cadena_final = "&".join(cadenas_fases) if cadenas_fases else "(Ninguna válvula activa)"
             print(f"Cadena enviada a ESP32: {cadena_final}")
