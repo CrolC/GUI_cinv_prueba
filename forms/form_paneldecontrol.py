@@ -1,5 +1,6 @@
 import customtkinter as ctk
 
+#PRUEBA DE WIDGETS (No funcional ¡IGNORAR! )
 
 class FormPaneldeControl(ctk.CTkScrollableFrame):
     def __init__(self, panel_principal, predeterminada):
