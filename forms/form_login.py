@@ -6,7 +6,7 @@ sys.path.append('d:/Python_Proyectos/INTER_C3')
 import util.generic as utl
 from forms.form_master import MasterPanel
 
-# BASE DE DATOS
+# BASE DE DATOS general
 def inicializar_base_datos():
     conn = sqlite3.connect("usuarios.db")
     cursor = conn.cursor()
