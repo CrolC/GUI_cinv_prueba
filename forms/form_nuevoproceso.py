@@ -30,7 +30,7 @@ class FormNuevoProceso(ctk.CTk):
         self.pausar_btn = ctk.CTkButton(self.botones_generales_frame, text="Pausar Rutina", fg_color="#F0AD4E")
         self.pausar_btn.pack(side="right", padx=5, pady=5)
 
-        self.reiniciar_btn = ctk.CTkButton(self.botones_generales_frame, text="Reiniciar Rutina", fg_color="#D9534F")
+        self.reiniciar_btn = ctk.CTkButton(self.botones_generales_frame, text="Reiniciar Rutina", fg_color="#D9534F", command=self.reiniciar_rutina)
         self.reiniciar_btn.pack(side="right", padx=5, pady=5)
 
     def validar_entrada(self, text, entry_widget):
@@ -49,7 +49,6 @@ class FormNuevoProceso(ctk.CTk):
         else:
             entry_widget.configure(border_color="red")
             return False
-        return True
 
     def validar_tiempo(self, entry, unidad_menu):
         try:
@@ -140,8 +139,8 @@ class FormNuevoProceso(ctk.CTk):
 
             # Dirección
             dir_var = ctk.StringVar(value="N")
-            btn_izq = ctk.CTkButton(fila, text="I", width=40, command=lambda v=dir_var, b1=None, b2=None: self.seleccionar_direccion(v, btn_izq, btn_der, "I"))
-            btn_der = ctk.CTkButton(fila, text="D", width=40, command=lambda v=dir_var, b1=None, b2=None: self.seleccionar_direccion(v, btn_izq, btn_der, "D"))
+            btn_izq = ctk.CTkButton(fila, text="I", width=40, command=lambda v=dir_var: self.seleccionar_direccion(v, btn_izq, btn_der, "I"))
+            btn_der = ctk.CTkButton(fila, text="D", width=40, command=lambda v=dir_var: self.seleccionar_direccion(v, btn_izq, btn_der, "D"))
             btn_izq.pack(side="left", padx=5)
             btn_der.pack(side="left", padx=5)
 
@@ -161,6 +160,7 @@ class FormNuevoProceso(ctk.CTk):
     def eliminar_fase(self, nombre_fase):
         if len(self.tabview._name_list) > 1:
             self.tabview.delete(nombre_fase)
+            del self.fases_datos[nombre_fase]
         else:
             print("No puedes eliminar la última fase")
 
@@ -174,10 +174,7 @@ class FormNuevoProceso(ctk.CTk):
                     if estado:
                         motor = f"M{i}"
                         direccion = dir_var.get()
-
-                        ciclos_val = ciclos.get()
-                        ciclos_val = ciclos_val.zfill(4) if ciclos_val else "0000"
-
+                        ciclos_val = ciclos.get().zfill(4) if ciclos.get() else "0000"
                         apertura_val = self.convertir_a_segundos(apertura.get(), apertura_unidad.get())
                         cierre_val = self.convertir_a_segundos(cierre.get(), cierre_unidad.get())
 
@@ -197,11 +194,22 @@ class FormNuevoProceso(ctk.CTk):
                         cadenas.append(cadena)
 
                 if cadenas:
-                    fase_cadena = "".join(cadenas)  
+                    fase_cadena = "".join(cadenas)
                     cadenas_fases.append(fase_cadena)
 
             cadena_final = "&".join(cadenas_fases) if cadenas_fases else "(Ninguna válvula activa)"
             print(f"Cadena enviada a ESP32: {cadena_final}")
-
         except Exception as e:
             print(f"Error al generar la cadena: {e}")
+
+    def reiniciar_rutina(self):
+        # Elimina todas las fases actuales del tabview
+        for nombre_fase in list(self.fases_datos.keys()):
+            self.tabview.delete(nombre_fase)
+        self.fases_datos.clear()
+
+        # Reinicia el contador de fases
+        self.fase_contador = 1
+
+        # Agrega de nuevo la Fase 1
+        self.agregar_fase("Fase 1")
