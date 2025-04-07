@@ -5,6 +5,7 @@ import util.generic as utl
 
 COLOR_CUERPO_PRINCIPAL = "#f4f8f7"
 
+#NOTA:Agregar fiuncion detener rutina
 class FormNuevoProceso(ctk.CTk):
 
     def __init__(self, panel_principal, logo):
