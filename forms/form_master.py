@@ -21,7 +21,7 @@ class MasterPanel(ctk.CTk):
         self.config_window()
 
 
-        self.logo = self.leer_imagen(r"d:/Python_Proyectos/INTER_C3/imagenes/logocinves_predeterm.png", (400, 136)) #revisar falla en lectura
+        self.logo = self.leer_imagen(r"d:/Python_Proyectos/INTER_C3/imagenes/logocinves_predeterm.png", (400, 136)) #revisar falla en lect imag
         self.perfil = self.leer_imagen(r"d:/Python_Proyectos/INTER_C3/imagenes/Perfil.png", (100, 100))
         self.predeterminada = self.leer_imagen(r"d:/Python_Proyectos/INTER_C3/imagenes/predeterm.png", (300, 100))
 
