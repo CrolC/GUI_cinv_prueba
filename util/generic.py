@@ -2,18 +2,16 @@ import customtkinter as ctk
 from PIL import Image
 import tkinter as tk
 
-#Metodo de lectura de imagenes (ERROR DESCONOCIDO)
 def leer_imagen(path, size): 
     try:
         pil_image = Image.open(path)
         pil_image = pil_image.resize(size, Image.LANCZOS)
-        return ctk.CTkImage(pil_image, size=size)
+        return ctk.CTkImage(light_image=pil_image, dark_image=pil_image, size=size)
     except Exception as e:
         print(f"Error al cargar la imagen: {e}")
         return None  
 
-
-# Para definir el centro de la ventana
+# Para que se centre automaticamente la ventana en la pantalla
 def centrar_ventana(ventana, aplicacion_ancho, aplicacion_largo):    
     pantall_ancho = ventana.winfo_screenwidth()
     pantall_largo = ventana.winfo_screenheight()
