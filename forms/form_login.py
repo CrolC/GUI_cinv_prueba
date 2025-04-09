@@ -2,26 +2,48 @@ import customtkinter as ctk
 from tkinter import messagebox
 import sqlite3
 import sys
+import os
 sys.path.append('d:/Python_Proyectos/INTER_C3')
 import util.generic as utl
 from forms.form_master import MasterPanel
 
-# BASE DE DATOS general
 def inicializar_base_datos():
     conn = sqlite3.connect("usuarios.db")
     cursor = conn.cursor()
-
-    # TABLA DE USUARIOS
     cursor.execute('''CREATE TABLE IF NOT EXISTS usuarios (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        usuario TEXT NOT NULL UNIQUE,
-                        password TEXT NOT NULL)''')
-
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    usuario TEXT NOT NULL UNIQUE,
+                    password TEXT NOT NULL)''')
     conn.commit()
     conn.close()
 
-# LOGIN
 class App:
+
+    def safe_destroy(self):
+        """Método seguro para destruir la ventana"""
+        if hasattr(self, 'ventana') and self.ventana:
+            try:
+                # Cancelar todos los eventos after pendientes
+                for id in self.ventana.tk.eval('after info').split():
+                    try:
+                        self.ventana.after_cancel(id)
+                    except:
+                        pass
+            
+                # Destruir widgets hijos primero
+                for child in self.ventana.winfo_children():
+                    try:
+                        child.destroy()
+                    except:
+                        pass
+            
+                # Finalmente destruir la ventana principal
+                self.ventana.quit()
+                self.ventana.destroy()
+            except Exception as e:
+                print(f"Error durante el cierre: {e}")
+                import os
+                os._exit(0)  # Salida forzosa como último recurso
 
     def verificar(self):
         usu = self.usuario.get()
@@ -34,18 +56,12 @@ class App:
         conn.close()
 
         if resultado:
-            self.ventana.withdraw()  # Oculta ventana en lugar de destruirla
-            master_panel = MasterPanel()  
-            master_panel.mainloop()  # Inicia la nueva ventana
-            self.ventana.destroy()  # Cerrar la ventana de login después de que MasterPanel termine
+            self.safe_destroy()  # Usa el método seguro
+            master_panel = MasterPanel()
+            master_panel.mainloop()
         else:
             messagebox.showerror(message="Usuario o contraseña incorrectos", title="Error")
 
-    def mostrar_panel_maestro(self):
-        master_panel = MasterPanel()
-        master_panel.mainloop()  # Hace que el panel maestro sea la ventana principal
-
-    #REGISTRO DE NUEVO USUARIO
     def registrar_usuario(self):
         usu = self.usuario_registro.get()
         password = self.password_registro.get()
@@ -64,13 +80,13 @@ class App:
             conn.commit()
             messagebox.showinfo("Éxito", "Usuario registrado exitosamente")
             self.ventana_registro.destroy()
-
         conn.close()
 
     def mostrar_ventana_registro(self):
         self.ventana_registro = ctk.CTkToplevel(self.ventana)
         self.ventana_registro.title("Registrar usuario")
         self.ventana_registro.geometry("400x300")
+        self.ventana_registro.protocol("WM_DELETE_WINDOW", self.ventana_registro.destroy)
 
         self.usuario_registro = ctk.CTkEntry(self.ventana_registro, placeholder_text="Usuario")
         self.usuario_registro.pack(pady=10)
@@ -90,48 +106,41 @@ class App:
         self.ventana.title('Inicio de sesión')
         self.ventana.geometry('800x500')
         self.ventana.resizable(width=False, height=False)
+        self.ventana.protocol("WM_DELETE_WINDOW", self.safe_destroy)
         utl.centrar_ventana(self.ventana, 800, 500)
 
-        # Frame del logo (lado izquierdo)
+        # Frame del logo
         frame_logo = ctk.CTkFrame(self.ventana, width=400, corner_radius=0, fg_color="#06918A")  
         frame_logo.pack(side="left", expand=True, fill="both")
 
-        # Lectura del logo
         logo = utl.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/logo.png", (200, 200))
         label_logo = ctk.CTkLabel(frame_logo, image=logo, text="")
-        label_logo.place(relx=0.5, rely=0.5, anchor="center")  # Centrar el logo
+        label_logo.place(relx=0.5, rely=0.5, anchor="center")
 
-        # Frame del formulario (lado derecho)
+        # Frame del formulario
         frame_form = ctk.CTkFrame(self.ventana, corner_radius=0)
         frame_form.pack(side="right", expand=True, fill="both")
 
-        # Título del formulario
         title = ctk.CTkLabel(frame_form, 
-                            text="Sistema de Crecimiento\npor Epitaxia de\nHaces Moleculares", 
-                            font=ctk.CTkFont(size=25, weight="bold"), 
-                            justify="center")
+                           text="Sistema de Crecimiento\npor Epitaxia de\nHaces Moleculares", 
+                           font=ctk.CTkFont(size=25, weight="bold"), 
+                           justify="center")
         title.pack(pady=30, padx=20, anchor="n") 
 
-        # Campo de usuario
         self.usuario = ctk.CTkEntry(frame_form, placeholder_text="Usuario", font=ctk.CTkFont(size=14))
         self.usuario.pack(pady=10, padx=20, fill="x")
 
-        # Campo de contraseña
         self.password = ctk.CTkEntry(frame_form, placeholder_text="Contraseña", font=ctk.CTkFont(size=14), show="*")
         self.password.pack(pady=10, padx=20, fill="x")
 
-        # Botón de inicio de sesión
         inicio = ctk.CTkButton(frame_form, text="Iniciar sesión", font=ctk.CTkFont(size=15, weight="bold"),
-                            command=self.verificar, fg_color="#06918A")
+                             command=self.verificar, fg_color="#06918A")
         inicio.pack(pady=20, padx=20, fill="x")
 
-        # Botón para abrir ventana de registro
         registro = ctk.CTkButton(frame_form, text="Registrarse", font=ctk.CTkFont(size=15), 
-                                command=self.mostrar_ventana_registro, fg_color="#06918A")
+                               command=self.mostrar_ventana_registro, fg_color="#06918A")
         registro.pack(pady=10, padx=20, fill="x")
 
-
-        self.ventana.mainloop()
-
 if __name__ == "__main__":
-    App()
+    app = App()
+    app.ventana.mainloop()

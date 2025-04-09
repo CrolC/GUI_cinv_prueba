@@ -14,37 +14,55 @@ COLOR_MENU_LATERAL = "#1f3334"
 COLOR_CUERPO_PRINCIPAL = "#f4f8f7"
 COLOR_MENU_CURSOR_ENCIMA = "#18a9b1"
 
-
 class MasterPanel(ctk.CTk):
-    def __init__(self):
-        super().__init__()
-        self.config_window()
 
-
-        self.logo = self.leer_imagen(r"d:/Python_Proyectos/INTER_C3/imagenes/logocinves_predeterm.png", (400, 136)) #revisar falla en lect imag
-        self.perfil = self.leer_imagen(r"d:/Python_Proyectos/INTER_C3/imagenes/Perfil.png", (100, 100))
-        self.predeterminada = self.leer_imagen(r"d:/Python_Proyectos/INTER_C3/imagenes/predeterm.png", (300, 100))
-
-        #print(self.image_names()) 
+    def on_close(self):
+        """Maneja el cierre seguro de la ventana"""
+        try:
+            # Cancelar eventos pendientes
+            for id in self.tk.eval('after info').split():
+                try:
+                    self.after_cancel(id)
+                except:
+                    pass
         
-        self.paneles()
-        self.controles_barra_superior()
-        self.controles_menu_lateral()
-        self.controles_cuerpo()
-
-    #def image_names(self):
-    #    return [img._path if hasattr(img, "_path") else "Imagen sin ruta" for img in [self.logo, self.perfil, self.predeterminada]]
+            # Destruir widgets hijos
+            for child in self.winfo_children():
+                try:
+                    child.destroy()
+                except:
+                    pass
         
+            # Liberar recursos
+            if hasattr(self, '_imagenes'):
+                del self._imagenes
+        
+            # Cierre ordenado
+            self.quit()
+            self.destroy()
+        except Exception as e:
+            print(f"Error durante el cierre: {e}")
+            import os
+            os._exit(0)
 
     def leer_imagen(self, path, size): 
         try:
             pil_image = Image.open(path)
             pil_image = pil_image.resize(size, Image.LANCZOS)
-            return ctk.CTkImage(pil_image, size=size)
+            image = ctk.CTkImage(pil_image, size=size)
+            # Imagen como atributo
+            if not hasattr(self, '_imagenes'):
+                self._imagenes = []
+            self._imagenes.append(image)
+            return image
         except Exception as e:
-            print(f"Error al cargar la imagen: {e}")
-            #return None
-            return ctk.CTkImage(Image.new('RGB', size, (255, 255, 255)), size=size)  # Imagen en blanco por defecto
+            print(f"Error al cargar la imagen {path}: {e}")
+            # Crea una imagen de placeholder
+            placeholder = ctk.CTkImage(Image.new('RGB', size, (200, 200, 200)), size=size)
+            if not hasattr(self, '_imagenes'):
+                self._imagenes = []
+            self._imagenes.append(placeholder)
+            return placeholder
 
     def centrar_ventana(self, aplicacion_ancho, aplicacion_largo):
         pantall_ancho = self.winfo_screenwidth()
@@ -60,6 +78,7 @@ class MasterPanel(ctk.CTk):
         except Exception as e:
             print(f"Error al cargar el ícono: {e}")
         self.centrar_ventana(1024, 600)
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
     
     def paneles(self):        
         # FRAMES PRINCIPALES: barra superior, menú lateral y cuerpo principal
@@ -91,10 +110,15 @@ class MasterPanel(ctk.CTk):
         font_awesome = ctk.CTkFont(family="FontAwesome", size=15)
         
         try:
-            self.labelPerfil = ctk.CTkLabel(self.menu_lateral, image=self.perfil, text="", fg_color=COLOR_MENU_LATERAL) if self.perfil else ctk.CTkLabel(self.menu_lateral, text="Perfil", fg_color=COLOR_MENU_LATERAL)
+            if hasattr(self, 'perfil') and self.perfil:
+                self.labelPerfil = ctk.CTkLabel(self.menu_lateral, image=self.perfil, text="", fg_color=COLOR_MENU_LATERAL)
+            else:
+                self.labelPerfil = ctk.CTkLabel(self.menu_lateral, text="Perfil", fg_color=COLOR_MENU_LATERAL)
             self.labelPerfil.pack(side=ctk.TOP, pady=10)
         except Exception as e:
             print(f"Error al crear label de perfil: {e}")
+            self.labelPerfil = ctk.CTkLabel(self.menu_lateral, text="Perfil", fg_color=COLOR_MENU_LATERAL)
+            self.labelPerfil.pack(side=ctk.TOP, pady=10)
         
         buttons_info = [ 
             ("Nuevo proceso", "\uf144", self.abrir_nuevoproceso),  
@@ -113,10 +137,15 @@ class MasterPanel(ctk.CTk):
     
     def controles_cuerpo(self):
         try:
-            label = ctk.CTkLabel(self.cuerpo_principal, image=self.logo, text="", fg_color=COLOR_CUERPO_PRINCIPAL)
+            if hasattr(self, 'logo') and self.logo:
+                label = ctk.CTkLabel(self.cuerpo_principal, image=self.logo, text="", fg_color=COLOR_CUERPO_PRINCIPAL)
+            else:
+                label = ctk.CTkLabel(self.cuerpo_principal, text="Bienvenido al Sistema MBE", font=ctk.CTkFont(size=20), fg_color=COLOR_CUERPO_PRINCIPAL)
             label.place(x=0, y=0, relwidth=1, relheight=1)
         except Exception as e:
             print(f"Error al crear el cuerpo principal: {e}")
+            label = ctk.CTkLabel(self.cuerpo_principal, text="Bienvenido al Sistema MBE", font=ctk.CTkFont(size=20), fg_color=COLOR_CUERPO_PRINCIPAL)
+            label.place(x=0, y=0, relwidth=1, relheight=1)
 
     def toggle_panel(self):
         if self.menu_lateral.winfo_ismapped():
@@ -124,7 +153,6 @@ class MasterPanel(ctk.CTk):
         else:
             self.menu_lateral.pack(side=ctk.LEFT, fill='both', expand=False)  
 
-    
     def abrir_nuevoproceso(self):
         self.limpiar_panel(self.cuerpo_principal)
         FormNuevoProceso(self.cuerpo_principal, self.predeterminada)
@@ -138,13 +166,11 @@ class MasterPanel(ctk.CTk):
         self.limpiar_panel(self.cuerpo_principal)
         FormHistorial(self.cuerpo_principal, self.predeterminada)
 
-    #P Monitoreo del proceso
     def abrir_monitoreo(self):
         print("Abriendo panel de monitoreo...")
         self.limpiar_panel(self.cuerpo_principal)
         FormMonitoreo(self.cuerpo_principal, self.predeterminada)
 
-    #P Diagnostico
     def abrir_diagnostico(self):
         print("Abriendo panel de diagnostico...")
         self.limpiar_panel(self.cuerpo_principal)
@@ -153,6 +179,20 @@ class MasterPanel(ctk.CTk):
     def limpiar_panel(self, panel):
         for widget in panel.winfo_children():
             widget.destroy()
+
+    def __init__(self):
+        super().__init__()
+        self._imagenes = []  # Lista para mantener referencias a imágenes
+        
+        self.config_window()
+        self.logo = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/logocinves_predeterm.png", (400, 136))
+        self.perfil = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/Perfil.png", (100, 100))
+        self.predeterminada = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/predeterm.png", (300, 100))
+        
+        self.paneles()
+        self.controles_barra_superior()
+        self.controles_menu_lateral()
+        self.controles_cuerpo()
 
 if __name__ == "__main__":
     app = MasterPanel()
