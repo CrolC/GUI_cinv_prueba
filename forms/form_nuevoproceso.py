@@ -1,7 +1,11 @@
 import customtkinter as ctk
+import sqlite3
 import sys
 sys.path.append('d:/Python_Proyectos/INTER_C3')
 import util.generic as utl
+
+from tkinter import messagebox
+import datetime
 
 COLOR_CUERPO_PRINCIPAL = "#f4f8f7"
 
@@ -167,12 +171,26 @@ class FormNuevoProceso(ctk.CTk):
 
     def enviar_cadena(self):
         try:
-            cadenas_fases = []
+            fecha_actual = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cadenas_fases = []  # Para construir la cadena a imprimir
+        
             for fase, valvulas in self.fases_datos.items():
                 cadenas = []
                 for i, (switch, dir_var, apertura, apertura_unidad, cierre, cierre_unidad, ciclos) in enumerate(valvulas, start=1):
-                    estado = switch.get()
-                    if estado:
+                    if switch.get():
+                        # Construir datos para DB
+                        datos = {
+                            'fecha_inicio': fecha_actual,
+                            'fecha_fin': '',  # Se actualizará al finalizar
+                            'hora_instruccion': fecha_actual,
+                            'valvula': f"Válvula {i}",
+                            'tiempo': self.convertir_a_segundos(apertura.get(), apertura_unidad.get()),
+                            'ciclos': ciclos.get() if ciclos.get() else 0,
+                            'estado': 'A'  # A = Abierta
+                        }
+                        self.guardar_proceso_db(datos)
+                    
+                        # Construir cadena para ESP32 (como en tu versión original)
                         motor = f"M{i}"
                         direccion = dir_var.get()
                         ciclos_val = ciclos.get().zfill(4) if ciclos.get() else "0000"
@@ -193,15 +211,18 @@ class FormNuevoProceso(ctk.CTk):
 
                         cadena = f"{motor}{tarea}{direccion}{ciclos_val}{apertura_str}{cierre_str}"
                         cadenas.append(cadena)
-
+            
                 if cadenas:
                     fase_cadena = "".join(cadenas)
                     cadenas_fases.append(fase_cadena)
 
+            # Mostrar en consola (como en tu versión original)
             cadena_final = "&".join(cadenas_fases) if cadenas_fases else "(Ninguna válvula activa)"
             print(f"Cadena enviada a ESP32: {cadena_final}")
+            
+            messagebox.showinfo("Éxito", "Proceso iniciado y guardado en historial")
         except Exception as e:
-            print(f"Error al generar la cadena: {e}")
+            messagebox.showerror("Error", f"No se pudo iniciar el proceso: {str(e)}")
 
     def reiniciar_rutina(self):
         # Elimina todas las fases actuales del tabview
@@ -214,3 +235,28 @@ class FormNuevoProceso(ctk.CTk):
 
         # Agrega de nuevo la Fase 1
         self.agregar_fase("Fase 1")
+
+    def guardar_proceso_db(self, datos_proceso):
+        """Guarda los datos del proceso en la base de datos"""
+        try:
+            conn = sqlite3.connect("procesos.db")
+            cursor = conn.cursor()
+            
+            cursor.execute('''INSERT INTO procesos 
+                           (fecha_inicio, fecha_fin, hora_instruccion, 
+                            valvula_activada, tiempo_valvula, ciclos, estado_valvula)
+                           VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                           (datos_proceso['fecha_inicio'],
+                            datos_proceso['fecha_fin'],
+                            datos_proceso['hora_instruccion'],
+                            datos_proceso['valvula'],
+                            datos_proceso['tiempo'],
+                            datos_proceso['ciclos'],
+                            datos_proceso['estado']))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"Error al guardar en DB: {e}")
+            return False
