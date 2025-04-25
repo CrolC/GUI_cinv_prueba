@@ -1,81 +1,81 @@
 import customtkinter as ctk
-
-#PRUEBA DE WIDGETS (No funcional ¡IGNORAR! )
-
+#PRUEBA 1 (¡NO FUNCIONAL!)
 class FormPaneldeControl(ctk.CTkScrollableFrame):
     def __init__(self, panel_principal, predeterminada):
         super().__init__(panel_principal)
         self.predeterminada = predeterminada
         
-        # Frame 1
-        self.frame1 = ctk.CTkScrollableFrame(self)
-        self.frame1.pack(side='top', padx=10, pady=10, fill='both', expand=True)
         
-        self.buttons1 = []
-        self.entries1 = []
-        for i in range(9):
-            button = ctk.CTkButton(self.frame1, text=f'ON/OFF {i+1}', command=lambda idx=i: self.toggle_button(idx, 'frame1'))
-            button.grid(row=i, column=0, padx=5, pady=5)
-            entry = ctk.CTkEntry(self.frame1, placeholder_text=f'Input {i+1}')
-            entry.grid(row=i, column=1, padx=5, pady=5)
-            self.buttons1.append(button)
-            self.entries1.append(entry)
-
-        # Frame 2
-        self.frame2 = ctk.CTkScrollableFrame(self)
-        self.frame2.pack(side='top', padx=10, pady=10, fill='both', expand=True)
-
-        self.buttons2 = []
-        self.entries2 = []
-        for i in range(9):
-            button = ctk.CTkButton(self.frame2, text=f'ON/OFF {i+1}', command=lambda idx=i: self.toggle_button(idx, 'frame2'))
-            button.grid(row=i, column=0, padx=5, pady=5)
-            entry = ctk.CTkEntry(self.frame2, placeholder_text=f'Input {i+1}')
-            entry.grid(row=i, column=1, padx=5, pady=5)
-            self.buttons2.append(button)
-            self.entries2.append(entry)
-
-        # Frame 3
-        self.frame3 = ctk.CTkScrollableFrame(self)
-        self.frame3.pack(side='top', padx=10, pady=10, fill='both', expand=True)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
         
-        self.leds1 = []
-        for i in range(9):
-            led = ctk.CTkLabel(self.frame3, text="OFF", fg_color="red", width=50)
-            led.grid(row=i, column=0, padx=5, pady=5)
-            self.leds1.append(led)
-
-        # Frame 4
-        self.frame4 = ctk.CTkScrollableFrame(self)
-        self.frame4.pack(side='top', padx=10, pady=10, fill='both', expand=True)
-
-        self.mode_leds = []
-        for i in range(3):
-            led = ctk.CTkLabel(self.frame4, text="OFF", fg_color="red", width=50)
-            led.grid(row=i, column=0, padx=5, pady=5)
-            self.mode_leds.append(led)
         
-        self.slider_mode = ctk.CTkSlider(self.frame4, from_=0, to=2, command=self.update_mode)
-        self.slider_mode.grid(row=3, column=0, padx=5, pady=5)
+        self.frame_ciclico = ctk.CTkFrame(self)
+        self.frame_ciclico.grid(row=0, column=0, padx=10, pady=(10,5), sticky="nsew")
+        
+        
+        ctk.CTkLabel(self.frame_ciclico, 
+                    text="PROCESO CÍCLICO",
+                    font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(5,10))
+        
+        
+        self.controles_ciclicos = []
+        for i in range(9):  
+            frame_control = ctk.CTkFrame(self.frame_ciclico)
+            frame_control.pack(fill="x", padx=5, pady=2)
+            
+            lbl = ctk.CTkLabel(frame_control, text=f"Válvula {i+1}", width=80)
+            lbl.pack(side="left", padx=(0,5))
+            
+            btn = ctk.CTkButton(frame_control, text="OFF", width=60,
+                               command=lambda idx=i: self.toggle_button(idx, 'ciclico'))
+            btn.pack(side="left", padx=(0,5))
+            
+            entry = ctk.CTkEntry(frame_control, placeholder_text="Tiempo (s)", width=100)
+            entry.pack(side="left")
+            
+            self.controles_ciclicos.append((btn, entry))
 
-        self.pack(padx=10, pady=10, fill='both', expand=True)
+        
+        self.frame_puntual = ctk.CTkFrame(self)
+        self.frame_puntual.grid(row=1, column=0, padx=10, pady=(5,10), sticky="nsew")
+        
+        
+        ctk.CTkLabel(self.frame_puntual, 
+                    text="PROCESO PUNTUAL",
+                    font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(5,10))
+        
+        
+        self.controles_puntuales = []
+        for i in range(9): 
+            frame_control = ctk.CTkFrame(self.frame_puntual)
+            frame_control.pack(fill="x", padx=5, pady=2)
+            
+            lbl = ctk.CTkLabel(frame_control, text=f"Válvula {i+1}", width=80)
+            lbl.pack(side="left", padx=(0,5))
+            
+            btn = ctk.CTkButton(frame_control, text="OFF", width=60,
+                              command=lambda idx=i: self.toggle_button(idx, 'puntual'))
+            btn.pack(side="left", padx=(0,5))
+            
+            entry = ctk.CTkEntry(frame_control, placeholder_text="Duración (s)", width=100)
+            entry.pack(side="left")
+            
+            self.controles_puntuales.append((btn, entry))
 
-    def toggle_button(self, idx, frame):
-        if frame == 'frame1':
-            current_text = self.buttons1[idx].cget('text')
-            new_text = 'OFF' if current_text == 'ON' else 'ON'
-            self.buttons1[idx].configure(text=new_text)
-            self.leds1[idx].configure(text=new_text, fg_color='green' if new_text == 'ON' else 'red')
-        elif frame == 'frame2':
-            current_text = self.buttons2[idx].cget('text')
-            new_text = 'OFF' if current_text == 'ON' else 'ON'
-            self.buttons2[idx].configure(text=new_text)
-            self.leds1[idx].configure(text=new_text, fg_color='green' if new_text == 'ON' else 'red')
+        
+        self.pack(padx=10, pady=10, fill="both", expand=True)
 
-    def update_mode(self, value):
-        mode_idx = int(value)
-        for i, led in enumerate(self.mode_leds):
-            if i == mode_idx:
-                led.configure(text='ON', fg_color='green')
-            else:
-                led.configure(text='OFF', fg_color='red')
+    def toggle_button(self, idx, tipo):
+        """Cambia el estado de los botones ON/OFF"""
+        if tipo == 'ciclico':
+            btn = self.controles_ciclicos[idx][0]
+        else:
+            btn = self.controles_puntuales[idx][0]
+            
+        current_text = btn.cget('text')
+        new_text = 'ON' if current_text == 'OFF' else 'OFF'
+        btn.configure(text=new_text, 
+                     fg_color="#06918A" if new_text == 'ON' else "#D3D3D3",
+                     text_color="white" if new_text == 'ON' else "black")
