@@ -3,57 +3,79 @@ import sqlite3
 import sys
 sys.path.append('d:/Python_Proyectos/INTER_C3')
 import util.generic as utl
-
 from tkinter import messagebox
 import datetime
 
 COLOR_CUERPO_PRINCIPAL = "#f4f8f7"
 
-#NOTA:Agregar fiuncion detener rutina
-class FormNuevoProceso(ctk.CTk):
-
-    def __init__(self, panel_principal, logo):
-        super().__init__()
+class FormNuevoProceso(ctk.CTkFrame):
+    def __init__(self, panel_principal, user_id):
+        super().__init__(panel_principal, fg_color=COLOR_CUERPO_PRINCIPAL)
+        self.user_id = user_id
+        self.pack(fill="both", expand=True) 
 
         self.fase_contador = 1
         self.fases_datos = {}
 
-        self.scrollable_frame = ctk.CTkScrollableFrame(panel_principal)
-        self.scrollable_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        # Frame principal
+        self.main_frame = ctk.CTkFrame(self, fg_color=COLOR_CUERPO_PRINCIPAL)
+        self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        self.tabview = ctk.CTkTabview(master=self.scrollable_frame)
-        self.tabview.pack(padx=20, pady=20, fill="both", expand=True)
+        # Frame scrollable
+        self.scrollable_frame = ctk.CTkScrollableFrame(self.main_frame)
+        self.scrollable_frame.pack(fill="both", expand=True)
 
+        # Fases
+        self.tabview = ctk.CTkTabview(self.scrollable_frame)
+        self.tabview.pack(fill="both", expand=True, padx=10, pady=10)
+
+        
         self.agregar_fase("Fase 1")
 
-        self.botones_generales_frame = ctk.CTkFrame(panel_principal)
-        self.botones_generales_frame.pack(fill="x", padx=10, pady=10)
+        # Frame de botones Ejecutar, Pausar y Reiniciar 
+        self.botones_generales_frame = ctk.CTkFrame(self.main_frame)
+        self.botones_generales_frame.pack(fill="x", padx=10, pady=(0, 10))
 
-        self.ejecutar_btn = ctk.CTkButton(self.botones_generales_frame, text="Ejecutar Rutina", fg_color="#06918A", command=self.enviar_cadena)
-        self.ejecutar_btn.pack(side="right", padx=5, pady=5)
+        # Botones de control
+        self.reiniciar_btn = ctk.CTkButton(
+            self.botones_generales_frame, 
+            text="Reiniciar Rutina", 
+            fg_color="#D9534F", 
+            command=self.reiniciar_rutina
+        )
+        self.reiniciar_btn.pack(side="left", padx=5)
 
-        self.pausar_btn = ctk.CTkButton(self.botones_generales_frame, text="Pausar Rutina", fg_color="#F0AD4E")
-        self.pausar_btn.pack(side="right", padx=5, pady=5)
+        self.pausar_btn = ctk.CTkButton(
+            self.botones_generales_frame, 
+            text="Pausar Rutina", 
+            fg_color="#F0AD4E"
+        )
+        self.pausar_btn.pack(side="left", padx=5)
 
-        self.reiniciar_btn = ctk.CTkButton(self.botones_generales_frame, text="Reiniciar Rutina", fg_color="#D9534F", command=self.reiniciar_rutina)
-        self.reiniciar_btn.pack(side="right", padx=5, pady=5)
+        self.ejecutar_btn = ctk.CTkButton(
+            self.botones_generales_frame, 
+            text="Ejecutar Rutina", 
+            fg_color="#06918A", 
+            command=self.enviar_cadena
+        )
+        self.ejecutar_btn.pack(side="right", padx=5)
 
-    def validar_entrada(self, text, entry_widget):
+        # Configurar validación de entrada
+        self.validar_cmd = self.register(self.validar_entrada)
+
+
+
+    def validar_entrada(self, text):
+        """Método simplificado para validación de entrada"""
+        if text == "":
+            return True
         if text.isdigit():
             try:
                 val = int(text)
-                if val <= 9999:
-                    entry_widget.configure(border_color="gray")
-                    return True
-                else:
-                    entry_widget.configure(border_color="red")
-                    return False
+                return val <= 9999
             except:
-                entry_widget.configure(border_color="red")
                 return False
-        else:
-            entry_widget.configure(border_color="red")
-            return False
+        return False
 
     def validar_tiempo(self, entry, unidad_menu):
         try:
@@ -95,7 +117,7 @@ class FormNuevoProceso(ctk.CTk):
         frame_fase = ctk.CTkFrame(self.tabview.tab(nombre_fase))
         frame_fase.pack(fill="both", expand=True, padx=10, pady=10)
 
-        validar_cmd = self.register(self.validar_entrada)
+        self.validar_cmd = self.register(self.validar_entrada)
 
         elementos = ["Al", "As", "Ga", "I", "N", "Mn", "Be", "Mg", "Si"]
         self.fases_datos[nombre_fase] = []
@@ -119,45 +141,57 @@ class FormNuevoProceso(ctk.CTk):
             # Apertura
             apertura_frame = ctk.CTkFrame(fila)
             apertura_frame.pack(side="left", padx=5)
-            apertura = ctk.CTkEntry(apertura_frame, width=50, validate="key", validatecommand=(validar_cmd, "%P"))
+            apertura = ctk.CTkEntry(apertura_frame, width=50, validate="key", 
+                                  validatecommand=(self.validar_cmd, "%P"))
             apertura.pack(side="left")
             apertura_unidad = ctk.CTkOptionMenu(apertura_frame, values=["s", "min", "h"], width=50)
             apertura_unidad.set("s")
             apertura_unidad.pack(side="left", padx=5)
-            apertura.bind("<KeyRelease>", lambda e, ent=apertura, unidad=apertura_unidad: self.validar_tiempo(ent, unidad))
-            apertura_unidad.configure(command=lambda v, ent=apertura, unidad=apertura_unidad: self.validar_tiempo(ent, unidad))
+            apertura.bind("<KeyRelease>", lambda e, ent=apertura, unidad=apertura_unidad: 
+                         self.validar_tiempo(ent, unidad))
+            apertura_unidad.configure(command=lambda v, ent=apertura, unidad=apertura_unidad: 
+                                    self.validar_tiempo(ent, unidad))
 
             # Cierre
             cierre_frame = ctk.CTkFrame(fila)
             cierre_frame.pack(side="left", padx=5)
-            cierre = ctk.CTkEntry(cierre_frame, width=50, validate="key", validatecommand=(validar_cmd, "%P"))
+            cierre = ctk.CTkEntry(cierre_frame, width=50, validate="key", 
+                                 validatecommand=(self.validar_cmd, "%P"))
             cierre.pack(side="left")
             cierre_unidad = ctk.CTkOptionMenu(cierre_frame, values=["s", "min", "h"], width=50)
             cierre_unidad.set("s")
             cierre_unidad.pack(side="left", padx=5)
-            cierre.bind("<KeyRelease>", lambda e, ent=cierre, unidad=cierre_unidad: self.validar_tiempo(ent, unidad))
-            cierre_unidad.configure(command=lambda v, ent=cierre, unidad=cierre_unidad: self.validar_tiempo(ent, unidad))
+            cierre.bind("<KeyRelease>", lambda e, ent=cierre, unidad=cierre_unidad: 
+                       self.validar_tiempo(ent, unidad))
+            cierre_unidad.configure(command=lambda v, ent=cierre, unidad=cierre_unidad: 
+                                  self.validar_tiempo(ent, unidad))
 
             # Ciclos
-            ciclos = ctk.CTkEntry(fila, width=60, validate="key", validatecommand=(validar_cmd, "%P"))
+            ciclos = ctk.CTkEntry(fila, width=60, validate="key", 
+                                validatecommand=(self.validar_cmd, "%P"))
             ciclos.pack(side="left", padx=5)
 
             # Dirección
             dir_var = ctk.StringVar(value="N")
-            btn_izq = ctk.CTkButton(fila, text="I", width=40, command=lambda v=dir_var: self.seleccionar_direccion(v, btn_izq, btn_der, "I"))
-            btn_der = ctk.CTkButton(fila, text="D", width=40, command=lambda v=dir_var: self.seleccionar_direccion(v, btn_izq, btn_der, "D"))
+            btn_izq = ctk.CTkButton(fila, text="I", width=40, 
+                                   command=lambda v=dir_var: self.seleccionar_direccion(v, btn_izq, btn_der, "I"))
+            btn_der = ctk.CTkButton(fila, text="D", width=40, 
+                                   command=lambda v=dir_var: self.seleccionar_direccion(v, btn_izq, btn_der, "D"))
             btn_izq.pack(side="left", padx=5)
             btn_der.pack(side="left", padx=5)
 
-            self.fases_datos[nombre_fase].append((switch, dir_var, apertura, apertura_unidad, cierre, cierre_unidad, ciclos))
+            self.fases_datos[nombre_fase].append((switch, dir_var, apertura, apertura_unidad, 
+                                                cierre, cierre_unidad, ciclos))
 
         botones_frame = ctk.CTkFrame(self.tabview.tab(nombre_fase))
         botones_frame.pack(side="bottom", pady=10)
 
-        boton_agregar = ctk.CTkButton(botones_frame, text="Agregar Fase", fg_color="#06918A", command=self.agregar_fase)
+        boton_agregar = ctk.CTkButton(botones_frame, text="Agregar Fase", fg_color="#06918A", 
+                                     command=self.agregar_fase)
         boton_agregar.pack(side="right", padx=5)
 
-        boton_eliminar = ctk.CTkButton(botones_frame, text="Eliminar Fase", fg_color="#D9534F", command=lambda: self.eliminar_fase(nombre_fase))
+        boton_eliminar = ctk.CTkButton(botones_frame, text="Eliminar Fase", fg_color="#D9534F", 
+                                      command=lambda: self.eliminar_fase(nombre_fase))
         boton_eliminar.pack(side="right", padx=5)
 
         self.tabview.set(nombre_fase)
@@ -167,7 +201,7 @@ class FormNuevoProceso(ctk.CTk):
             self.tabview.delete(nombre_fase)
             del self.fases_datos[nombre_fase]
         else:
-            print("No puedes eliminar la última fase")
+            messagebox.showwarning("Advertencia", "No puedes eliminar la última fase")
 
     def enviar_cadena(self):
         try:
@@ -190,7 +224,7 @@ class FormNuevoProceso(ctk.CTk):
                         }
                         self.guardar_proceso_db(datos)
                     
-                        # Construir cadena para ESP32 (como en tu versión original)
+                        # Construir cadena para ESP32
                         motor = f"M{i}"
                         direccion = dir_var.get()
                         ciclos_val = ciclos.get().zfill(4) if ciclos.get() else "0000"
@@ -216,7 +250,7 @@ class FormNuevoProceso(ctk.CTk):
                     fase_cadena = "".join(cadenas)
                     cadenas_fases.append(fase_cadena)
 
-            # Mostrar en consola (como en tu versión original)
+            # Mostrar en consola
             cadena_final = "&".join(cadenas_fases) if cadenas_fases else "(Ninguna válvula activa)"
             print(f"Cadena enviada a ESP32: {cadena_final}")
             
@@ -237,23 +271,21 @@ class FormNuevoProceso(ctk.CTk):
         self.agregar_fase("Fase 1")
 
     def guardar_proceso_db(self, datos_proceso):
-        """Guarda los datos del proceso en la base de datos"""
         try:
             conn = sqlite3.connect("procesos.db")
             cursor = conn.cursor()
-            
             cursor.execute('''INSERT INTO procesos 
-                           (fecha_inicio, fecha_fin, hora_instruccion, 
+                           (user_id, fecha_inicio, fecha_fin, hora_instruccion, 
                             valvula_activada, tiempo_valvula, ciclos, estado_valvula)
-                           VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                           (datos_proceso['fecha_inicio'],
-                            datos_proceso['fecha_fin'],
-                            datos_proceso['hora_instruccion'],
-                            datos_proceso['valvula'],
-                            datos_proceso['tiempo'],
-                            datos_proceso['ciclos'],
-                            datos_proceso['estado']))
-            
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                        (self.user_id,  # Uso self.user_id directamente
+                         datos_proceso['fecha_inicio'],
+                         datos_proceso['fecha_fin'],
+                         datos_proceso['hora_instruccion'],
+                         datos_proceso['valvula'],
+                         datos_proceso['tiempo'],
+                         datos_proceso['ciclos'],
+                         datos_proceso['estado']))
             conn.commit()
             conn.close()
             return True
