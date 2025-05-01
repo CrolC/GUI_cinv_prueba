@@ -7,6 +7,7 @@ sys.path.append('d:/Python_Proyectos/INTER_C3')
 import util.generic as utl
 from forms.form_master import MasterPanel
 
+
 def inicializar_base_datos():
     conn = sqlite3.connect("usuarios.db")
     cursor = conn.cursor()
@@ -14,8 +15,39 @@ def inicializar_base_datos():
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     usuario TEXT NOT NULL UNIQUE,
                     password TEXT NOT NULL)''')
+    
+    # Actualizar procesos.db con la columna user_id
+    conn_procesos = sqlite3.connect("procesos.db")
+    cursor_procesos = conn_procesos.cursor()
+    
+    # Verificar si la tabla existe
+    cursor_procesos.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='procesos'")
+    table_exists = cursor_procesos.fetchone()
+    
+    if table_exists:
+        # Verificar si la columna user_id existe
+        cursor_procesos.execute("PRAGMA table_info(procesos)")
+        columns = [column[1] for column in cursor_procesos.fetchall()]
+        if 'user_id' not in columns:
+            # Agregar la columna si no existe
+            cursor_procesos.execute("ALTER TABLE procesos ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1")
+    
+    cursor_procesos.execute('''CREATE TABLE IF NOT EXISTS procesos (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            user_id INTEGER NOT NULL,
+                            fecha_inicio TEXT NOT NULL,
+                            fecha_fin TEXT,
+                            hora_instruccion TEXT NOT NULL,
+                            valvula_activada TEXT NOT NULL,
+                            tiempo_valvula INTEGER NOT NULL,
+                            ciclos INTEGER NOT NULL,
+                            estado_valvula TEXT NOT NULL,
+                            FOREIGN KEY (user_id) REFERENCES usuarios(id))''')
+    
     conn.commit()
+    conn_procesos.commit()
     conn.close()
+    conn_procesos.close()
 
 class App:
 
@@ -23,7 +55,7 @@ class App:
         """Método seguro para destruir la ventana"""
         if hasattr(self, 'ventana') and self.ventana:
             try:
-                # Cancelar todos los eventos after pendientes
+                # Cancelar todos los after pendientes
                 for id in self.ventana.tk.eval('after info').split():
                     try:
                         self.ventana.after_cancel(id)
@@ -37,7 +69,7 @@ class App:
                     except:
                         pass
             
-                # Finalmente destruir la ventana principal
+                # Dstruir la ventana principal
                 self.ventana.quit()
                 self.ventana.destroy()
             except Exception as e:
@@ -45,19 +77,21 @@ class App:
                 import os
                 os._exit(0)  # Salida forzosa como último recurso
 
+
     def verificar(self):
         usu = self.usuario.get()
         password = self.password.get()
 
         conn = sqlite3.connect("usuarios.db")
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM usuarios WHERE usuario=? AND password=?", (usu, password))
+        cursor.execute("SELECT id FROM usuarios WHERE usuario=? AND password=?", (usu, password))
         resultado = cursor.fetchone()
         conn.close()
 
         if resultado:
-            self.safe_destroy()  # Usa el método seguro
-            master_panel = MasterPanel()
+            user_id = resultado[0]  # Obtener el ID
+            self.safe_destroy()
+            master_panel = MasterPanel(user_id)  # Pasar el ID
             master_panel.mainloop()
         else:
             messagebox.showerror(message="Usuario o contraseña incorrectos", title="Error")
