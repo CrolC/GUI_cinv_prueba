@@ -5,13 +5,15 @@ import util.generic as utl
 
 #EN CONSTRUCCION#
 class FormDiagnostico(ctk.CTkFrame):
-    def __init__(self, panel_principal, predeterminada):
-        super().__init__(panel_principal)
-        
+    def __init__(self, panel_principal, user_id):
+        super().__init__(panel_principal, fg_color="#f4f8f7")  
+        self.user_id = user_id
+    
+    
         self.grid_rowconfigure(0, weight=1) 
         self.grid_columnconfigure(0, weight=1)
         
-        self.frame_construccion = ctk.CTkFrame(self, width=400, height=200)  # Ajustar tamaño aquí
+        self.frame_construccion = ctk.CTkFrame(self, width=400, height=200)  
         self.frame_construccion.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")  
         
         self.label_construccion = ctk.CTkLabel(self.frame_construccion, 
