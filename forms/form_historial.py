@@ -5,21 +5,20 @@ import datetime
 import traceback
 from tkinter import ttk
 
+        
 class FormHistorial(ctk.CTkFrame):
-    def __init__(self, master, logo):
-        super().__init__(master)
-        self.master = master
-        self.logo = logo
+    def __init__(self, panel_principal, user_id):  
+        super().__init__(panel_principal)
+        self.user_id = user_id
+     
+        self.configure(fg_color="#f4f8f7")  
+        self.pack(fill="both", expand=True, padx=10, pady=10)  
         
-        # Configuración principal del frame
-        self.configure(fg_color="#f4f8f7")  # Color de fondo del frame
-        self.pack(fill="both", expand=True, padx=10, pady=10)  # Expandir completamente
         
-        # Frame contenedor principal
         self.main_frame = ctk.CTkFrame(self)
         self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Título
+        
         self.title_label = ctk.CTkLabel(
             self.main_frame, 
             text="Historial de Procesos", 
@@ -27,11 +26,11 @@ class FormHistorial(ctk.CTkFrame):
         )
         self.title_label.pack(pady=(0, 20))
         
-        # Frame para botones
+        
         self.button_frame = ctk.CTkFrame(self.main_frame)
         self.button_frame.pack(fill="x", pady=(0, 10))
         
-        # Botón de actualizar
+        
         self.actualizar_btn = ctk.CTkButton(
             self.button_frame, 
             text="Actualizar", 
@@ -41,7 +40,7 @@ class FormHistorial(ctk.CTkFrame):
         )
         self.actualizar_btn.pack(side="left", padx=5)
         
-        # Botón de generar reporte
+        
         self.reporte_btn = ctk.CTkButton(
             self.button_frame, 
             text="Generar Reporte", 
@@ -51,23 +50,20 @@ class FormHistorial(ctk.CTkFrame):
         )
         self.reporte_btn.pack(side="left", padx=5)
         
-        # Frame para el Treeview
+        
         self.tree_frame = ctk.CTkFrame(self.main_frame)
         self.tree_frame.pack(fill="both", expand=True)
         
-        # Configurar el Treeview
         self._configurar_treeview()
         
-        # Cargar datos iniciales
         self.cargar_historial()
         
-        # Forzar actualización de la interfaz
         self.update()
         self.update_idletasks()
 
     def _configurar_treeview(self):
         """Configura el Treeview y su scrollbar"""
-        # Configurar estilo
+        
         style = ttk.Style()
         style.theme_use("default")
         style.configure("Treeview",
@@ -86,7 +82,7 @@ class FormHistorial(ctk.CTkFrame):
                  background=[('selected', '#007bff')],
                  foreground=[('selected', 'white')])
         
-        # Crear Treeview
+        
         self.treeview = ttk.Treeview(
             self.tree_frame,
             columns=("fecha_inicio", "fecha_fin", "hora_instruccion", 
@@ -95,7 +91,7 @@ class FormHistorial(ctk.CTkFrame):
             selectmode="browse"
         )
         
-        # Configurar columnas
+        
         columnas = [
             ("fecha_inicio", "Fecha Inicio", 120),
             ("fecha_fin", "Fecha Fin", 120),
@@ -110,7 +106,7 @@ class FormHistorial(ctk.CTkFrame):
             self.treeview.heading(col, text=text, anchor="w")
             self.treeview.column(col, width=width, anchor="w", stretch=False)
         
-        # Añadir scrollbar
+        
         self.scrollbar = ctk.CTkScrollbar(
             self.tree_frame,
             orientation="vertical",
@@ -118,31 +114,34 @@ class FormHistorial(ctk.CTkFrame):
         )
         self.treeview.configure(yscrollcommand=self.scrollbar.set)
         
-        # Empaquetar widgets
+        
         self.treeview.pack(side="left", fill="both", expand=True)
         self.scrollbar.pack(side="right", fill="y")
 
+
     def cargar_historial(self):
-        """Carga los datos desde la base de datos"""
         try:
-            # Limpiar Treeview
+            
             for item in self.treeview.get_children():
                 self.treeview.delete(item)
-            
-            # Conectar a la base de datos
+        
             conn = sqlite3.connect("procesos.db")
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM procesos ORDER BY id DESC")
+            
+            # Usar self.user_id en lugar de self.master.user_id
+            cursor.execute("SELECT * FROM procesos WHERE user_id=? ORDER BY id DESC", 
+                        (self.user_id,))  # Filtrar por usuario
+            
             procesos = cursor.fetchall()
             conn.close()
-            
-            # Insertar datos
+        
+            # Insertar solo las columnas importantes (excluyendo id y user_id)
             for proceso in procesos:
-                self.treeview.insert("", "end", values=proceso[1:8])
+                self.treeview.insert("", "end", values=proceso[2:9])
                 
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo cargar el historial:\n{str(e)}")
-            print(f"Error: {traceback.format_exc()}")
+            print(f"Error detallado: {traceback.format_exc()}")
 
     def generar_reporte(self):
         """Genera un reporte con los datos seleccionados"""
@@ -154,7 +153,7 @@ class FormHistorial(ctk.CTkFrame):
         item = self.treeview.item(seleccion)
         
         try:
-            # Configurar diálogo de guardado
+            
             nombre_archivo = f"reporte_proceso_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
             ruta_archivo = filedialog.asksaveasfilename(
                 defaultextension=".txt",
@@ -165,7 +164,7 @@ class FormHistorial(ctk.CTkFrame):
             if not ruta_archivo:
                 return
                 
-            # Generar contenido
+            
             contenido = [
                 "REPORTE DEL SISTEMA MBE",
                 "="*50,
@@ -182,7 +181,7 @@ class FormHistorial(ctk.CTkFrame):
                 f"Estado: {item['values'][6]}"
             ]
             
-            # Guardar archivo
+            
             with open(ruta_archivo, 'w', encoding='utf-8') as f:
                 f.write("\n".join(contenido))
                 
