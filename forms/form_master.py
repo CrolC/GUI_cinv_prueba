@@ -14,7 +14,22 @@ COLOR_MENU_LATERAL = "#1f3334"
 COLOR_CUERPO_PRINCIPAL = "#f4f8f7"
 COLOR_MENU_CURSOR_ENCIMA = "#18a9b1"
 
+
 class MasterPanel(ctk.CTk):
+    def __init__(self, user_id):
+        super().__init__()
+        self.user_id = user_id
+        self._imagenes = []
+        
+        self.config_window()
+        self.logo = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/logocinves_predeterm.png", (400, 136))
+        self.perfil = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/Perfil.png", (100, 100))
+        self.predeterminada = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/predeterm.png", (300, 100))
+        
+        self.paneles()
+        self.controles_barra_superior()
+        self.controles_menu_lateral()
+        self.controles_cuerpo()
 
     def on_close(self):
         """Maneja el cierre seguro de la ventana"""
@@ -37,7 +52,7 @@ class MasterPanel(ctk.CTk):
             if hasattr(self, '_imagenes'):
                 del self._imagenes
         
-            # Cierre ordenado
+            #cierre en orden
             self.quit()
             self.destroy()
         except Exception as e:
@@ -155,45 +170,29 @@ class MasterPanel(ctk.CTk):
 
     def abrir_nuevoproceso(self):
         self.limpiar_panel(self.cuerpo_principal)
-        FormNuevoProceso(self.cuerpo_principal, self.predeterminada)
-    
+        FormNuevoProceso(self.cuerpo_principal, self.user_id) 
+
     def abrir_paneldecontrol(self):
         self.limpiar_panel(self.cuerpo_principal)
-        FormPaneldeControl(self.cuerpo_principal, self.predeterminada)
-    
+        FormPaneldeControl(self.cuerpo_principal, self.user_id)  
+
     def abrir_historial(self):
         print("Abriendo panel de historial...")
         self.limpiar_panel(self.cuerpo_principal)
-        FormHistorial(self.cuerpo_principal, self.predeterminada)
-
-    def abrir_monitoreo(self):
-        print("Abriendo panel de monitoreo...")
-        self.limpiar_panel(self.cuerpo_principal)
-        FormMonitoreo(self.cuerpo_principal, self.predeterminada)
+        FormHistorial(self.cuerpo_principal, self.user_id)  
 
     def abrir_diagnostico(self):
-        print("Abriendo panel de diagnostico...")
         self.limpiar_panel(self.cuerpo_principal)
-        FormDiagnostico(self.cuerpo_principal, self.predeterminada)
+        FormDiagnostico(self.cuerpo_principal, self.user_id)  
+
+    def abrir_monitoreo(self):
+        self.limpiar_panel(self.cuerpo_principal)
+        FormMonitoreo(self.cuerpo_principal, self.user_id)  
     
     def limpiar_panel(self, panel):
         for widget in panel.winfo_children():
             widget.destroy()
 
-    def __init__(self):
-        super().__init__()
-        self._imagenes = []  # Lista para mantener referencias a imágenes
-        
-        self.config_window()
-        self.logo = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/logocinves_predeterm.png", (400, 136))
-        self.perfil = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/Perfil.png", (100, 100))
-        self.predeterminada = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/predeterm.png", (300, 100))
-        
-        self.paneles()
-        self.controles_barra_superior()
-        self.controles_menu_lateral()
-        self.controles_cuerpo()
-
 if __name__ == "__main__":
-    app = MasterPanel()
+    app = MasterPanel() 
     app.mainloop()
