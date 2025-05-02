@@ -5,12 +5,10 @@ import datetime
 import traceback
 from tkinter import ttk
 
-        
 class FormHistorial(ctk.CTkFrame):
     def __init__(self, panel_principal, user_id):  
         super().__init__(panel_principal)
         self.user_id = user_id
-     
         self.configure(fg_color="#f4f8f7")  
         self.pack(fill="both", expand=True, padx=10, pady=10)  
         
@@ -40,7 +38,6 @@ class FormHistorial(ctk.CTkFrame):
         )
         self.actualizar_btn.pack(side="left", padx=5)
         
-        
         self.reporte_btn = ctk.CTkButton(
             self.button_frame, 
             text="Generar Reporte", 
@@ -55,15 +52,10 @@ class FormHistorial(ctk.CTkFrame):
         self.tree_frame.pack(fill="both", expand=True)
         
         self._configurar_treeview()
-        
         self.cargar_historial()
-        
-        self.update()
-        self.update_idletasks()
 
     def _configurar_treeview(self):
-        """Configura el Treeview y su scrollbar"""
-        
+        """Configura el Treeview con las columnas en el orden correcto"""
         style = ttk.Style()
         style.theme_use("default")
         style.configure("Treeview",
@@ -85,7 +77,7 @@ class FormHistorial(ctk.CTkFrame):
         
         self.treeview = ttk.Treeview(
             self.tree_frame,
-            columns=("fecha_inicio", "fecha_fin", "hora_instruccion", 
+            columns=("fecha_inicio", "hora_instruccion", "fecha_fin",
                     "valvula", "tiempo", "ciclos", "estado"),
             show="headings",
             selectmode="browse"
@@ -93,9 +85,9 @@ class FormHistorial(ctk.CTkFrame):
         
         
         columnas = [
-            ("fecha_inicio", "Fecha Inicio", 120),
-            ("fecha_fin", "Fecha Fin", 120),
-            ("hora_instruccion", "Hora Instrucción", 150),
+            ("fecha_inicio", "Fecha Inicio", 100),  
+            ("hora_instruccion", "Hora Instrucción", 100),
+            ("fecha_fin", "Fecha Fin", 100),
             ("valvula", "Válvula", 100),
             ("tiempo", "Tiempo (s)", 80),
             ("ciclos", "Ciclos", 80),
@@ -114,46 +106,82 @@ class FormHistorial(ctk.CTkFrame):
         )
         self.treeview.configure(yscrollcommand=self.scrollbar.set)
         
-        
         self.treeview.pack(side="left", fill="both", expand=True)
         self.scrollbar.pack(side="right", fill="y")
 
-
     def cargar_historial(self):
+        """Carga los datos ordenados según la estructura de la base de datos"""
         try:
             
-            for item in self.treeview.get_children():
-                self.treeview.delete(item)
-        
+            self.treeview.delete(*self.treeview.get_children())
+            
+            
             conn = sqlite3.connect("procesos.db")
             cursor = conn.cursor()
             
-            # Usar self.user_id en lugar de self.master.user_id
-            cursor.execute("SELECT * FROM procesos WHERE user_id=? ORDER BY id DESC", 
-                        (self.user_id,))  # Filtrar por usuario
+            
+            cursor.execute("""
+                SELECT 
+                    fecha_inicio,
+                    hora_instruccion,
+                    fecha_fin,
+                    valvula_activada,
+                    tiempo_valvula,
+                    ciclos,
+                    estado_valvula
+                FROM procesos 
+                WHERE user_id=? 
+                ORDER BY fecha_inicio DESC, hora_instruccion DESC
+            """, (self.user_id,))
             
             procesos = cursor.fetchall()
             conn.close()
-        
-            # Insertar solo las columnas importantes (excluyendo id y user_id)
+            
+            
             for proceso in procesos:
-                self.treeview.insert("", "end", values=proceso[2:9])
+                # YYYY-MM-DD
+                fecha_inicio = proceso[0]
+                if fecha_inicio and ' ' in fecha_inicio:
+                    fecha_inicio = fecha_inicio.split(' ')[0]
+                
+                # HH:MM:SS
+                hora_instruccion = proceso[1]
+                if hora_instruccion and ' ' in hora_instruccion:
+                    hora_instruccion = hora_instruccion.split(' ')[1]
+                
+                # YYYY-MM-DD
+                fecha_fin = proceso[2]
+                if fecha_fin and ' ' in fecha_fin:
+                    fecha_fin = fecha_fin.split(' ')[0]
+                
+                
+                valores = (
+                    fecha_inicio,  # solo fecha
+                    hora_instruccion,  # solo hora
+                    fecha_fin,  # solo fecha
+                    proceso[3],  # valvula
+                    proceso[4],  # tiempo
+                    proceso[5],  # ciclos
+                    proceso[6]   # estado
+                )
+                self.treeview.insert("", "end", values=valores)
                 
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo cargar el historial:\n{str(e)}")
             print(f"Error detallado: {traceback.format_exc()}")
 
     def generar_reporte(self):
-        """Genera un reporte con los datos seleccionados"""
+        """Genera reporte con los datos en el formato correcto"""
         seleccion = self.treeview.focus()
         if not seleccion:
             messagebox.showwarning("Advertencia", "Por favor seleccione un proceso del historial")
             return
             
         item = self.treeview.item(seleccion)
+        valores = item['values']
         
         try:
-            
+           
             nombre_archivo = f"reporte_proceso_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
             ruta_archivo = filedialog.asksaveasfilename(
                 defaultextension=".txt",
@@ -172,16 +200,16 @@ class FormHistorial(ctk.CTkFrame):
                 "",
                 "DATOS DEL PROCESO:",
                 "-"*50,
-                f"Fecha de inicio: {item['values'][0]}",
-                f"Fecha de fin: {item['values'][1]}",
-                f"Hora de instrucción: {item['values'][2]}",
-                f"Válvula activada: {item['values'][3]}",
-                f"Tiempo de activación: {item['values'][4]} segundos",
-                f"Ciclos completados: {item['values'][5]}",
-                f"Estado: {item['values'][6]}"
+                f"Fecha de inicio: {valores[0]}",
+                f"Hora de instrucción: {valores[1]}",
+                f"Fecha de fin: {valores[2]}",
+                f"Válvula activada: {valores[3]}",
+                f"Tiempo de activación: {valores[4]} segundos",
+                f"Ciclos completados: {valores[5]}",
+                f"Estado: {valores[6]}"
             ]
             
-            
+           
             with open(ruta_archivo, 'w', encoding='utf-8') as f:
                 f.write("\n".join(contenido))
                 
