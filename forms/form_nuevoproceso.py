@@ -7,7 +7,7 @@ from tkinter import messagebox
 import datetime
 
 COLOR_CUERPO_PRINCIPAL = "#f4f8f7"
-#Modificar condicionamiento de ciclos
+
 class FormNuevoProceso(ctk.CTkFrame):
     def __init__(self, panel_principal, user_id):
         super().__init__(panel_principal, fg_color=COLOR_CUERPO_PRINCIPAL)
@@ -25,7 +25,7 @@ class FormNuevoProceso(ctk.CTkFrame):
         self.fases_datos = {}
         self.valvulas_activas = {}
 
-        
+        # Registrar función de validación ANTES de usarla
         self.validar_cmd = self.register(self.validar_entrada)
 
         
@@ -71,7 +71,6 @@ class FormNuevoProceso(ctk.CTkFrame):
             command=self.iniciar_proceso
         )
         self.ejecutar_btn.pack(side="right", padx=5)
-
 
     def validar_entrada(self, text):
         """Validación de entrada numérica"""
@@ -208,7 +207,7 @@ class FormNuevoProceso(ctk.CTkFrame):
                 'tiempo_transcurrido': 0
             })
 
-       
+        
         botones_frame = ctk.CTkFrame(self.tabview.tab(nombre_fase))
         botones_frame.pack(side="bottom", pady=10)
         ctk.CTkButton(botones_frame, text="Agregar Fase", fg_color="#06918A",
@@ -237,10 +236,10 @@ class FormNuevoProceso(ctk.CTkFrame):
                 for valvula_idx, valvula in enumerate(valvulas):
                     if valvula['switch'].get():
                         try:
-                            ciclos = int(valvula['ciclos'].get()) if valvula['ciclos'].get() else 0
                             tiempo = self.convertir_a_segundos(valvula['apertura'].get(), valvula['apertura_unidad'].get())
+                            ciclos = int(valvula['ciclos'].get()) if valvula['ciclos'].get() else 0
                             
-                            if ciclos > 0 and tiempo > 0:
+                            if tiempo > 0:  # Solo tiempo de apertura
                                 valvulas_configuradas = True
                                 key = f"F{fase_idx+1}V{valvula_idx+1}"
                                 self.valvulas_activas[key] = {
@@ -252,12 +251,17 @@ class FormNuevoProceso(ctk.CTkFrame):
                                     'tiempo_transcurrido': 0,
                                     'progreso': valvula['progreso']
                                 }
-                                valvula['progreso'].configure(text=f"0/{ciclos}")
-                        except:
+                                # Mostrar progreso diferente según tenga ciclos o no
+                                if ciclos > 0:
+                                    valvula['progreso'].configure(text=f"0/{ciclos}")
+                                else:
+                                    valvula['progreso'].configure(text=f"T: {tiempo}s")
+                        except Exception as e:
+                            print(f"Error al procesar válvula: {e}")
                             pass
-            
+        
             if not valvulas_configuradas:
-                messagebox.showwarning("Advertencia", "Debe configurar al menos una válvula con ciclos y tiempo válidos")
+                messagebox.showwarning("Advertencia", "Debe configurar al menos una válvula con tiempo de apertura válido")
                 return
             
             if not self.enviar_cadena():
@@ -284,7 +288,7 @@ class FormNuevoProceso(ctk.CTkFrame):
                 self.fase_actual += 1
                 continue
             
-            
+            # Iniciar tiempo de fase
             self.tiempo_inicio_fase = time.time()
             tiempo_pausa = 0
             fase_completada = False
@@ -296,26 +300,34 @@ class FormNuevoProceso(ctk.CTkFrame):
                         time.sleep(0.1)
                     if not self.proceso_en_ejecucion:
                         break
-                    # Retoma de inicio por pausa
+                    
                     self.tiempo_inicio_fase += time.time() - tiempo_pausa
                 
-                # T transcurrido en esta fase
+                # Calcular tiempo transcurrido en esta fase
                 tiempo_actual = time.time()
                 tiempo_transcurrido_fase = tiempo_actual - self.tiempo_inicio_fase
                 
-                # Actualización de todas las válvulas de esta fase
+                # Actualizar todas las válvulas de esta fase
                 fase_completada = True
                 for key, valvula in valvulas_fase.items():
-                    if valvula['ciclos_completados'] < valvula['ciclos_totales']:
-                        ciclos_completos = int(tiempo_transcurrido_fase / valvula['tiempo_ciclo'])
-                        ciclos_completos = min(ciclos_completos, valvula['ciclos_totales'])
-                        
-                        if ciclos_completos > valvula['ciclos_completados']:
-                            valvula['ciclos_completados'] = ciclos_completos
-                            valvula['progreso'].configure(text=f"{ciclos_completos}/{valvula['ciclos_totales']}")
-                        
+                    if valvula['ciclos_totales'] > 0:  # Válvula con ciclos
                         if valvula['ciclos_completados'] < valvula['ciclos_totales']:
+                            ciclos_completos = int(tiempo_transcurrido_fase / valvula['tiempo_ciclo'])
+                            ciclos_completos = min(ciclos_completos, valvula['ciclos_totales'])
+                            
+                            if ciclos_completos > valvula['ciclos_completados']:
+                                valvula['ciclos_completados'] = ciclos_completos
+                                valvula['progreso'].configure(text=f"{ciclos_completos}/{valvula['ciclos_totales']}")
+                            
+                            if valvula['ciclos_completados'] < valvula['ciclos_totales']:
+                                fase_completada = False
+                    else:  # Válvula sin ciclos (solo tiempo)
+                        if tiempo_transcurrido_fase < valvula['tiempo_ciclo']:
+                            tiempo_restante = max(0, valvula['tiempo_ciclo'] - tiempo_transcurrido_fase)
+                            valvula['progreso'].configure(text=f"T: {int(tiempo_restante)}s")
                             fase_completada = False
+                        else:
+                            valvula['progreso'].configure(text="Completado")
                 
                 time.sleep(0.1)
             
@@ -351,40 +363,44 @@ class FormNuevoProceso(ctk.CTkFrame):
                 cadenas = []
                 for valvula_idx, valvula in enumerate(valvulas, start=1):
                     if valvula['switch'].get():
+                        # Construir datos para DB
+                        tiempo = self.convertir_a_segundos(valvula['apertura'].get(), valvula['apertura_unidad'].get())
+                        ciclos = valvula['ciclos'].get() if valvula['ciclos'].get() else 0
                         
                         datos = {
                             'fecha_inicio': fecha_actual,
-                            'fecha_fin': '',  # Voy a modicar con cadena de retorno
+                            'fecha_fin': '',  # Se actualizará al finalizar
                             'hora_instruccion': fecha_actual,
                             'valvula': f"Válvula {valvula_idx}",
-                            'tiempo': self.convertir_a_segundos(valvula['apertura'].get(), valvula['apertura_unidad'].get()),
-                            'ciclos': valvula['ciclos'].get() if valvula['ciclos'].get() else 0,
+                            'tiempo': tiempo,
+                            'ciclos': ciclos,
                             'estado': 'A'  # A = Abierta
                         }
                         self.guardar_proceso_db(datos)
                     
-                        # Cadena para ESP32
+                        # Construir cadena para ESP32
                         motor = f"M{valvula_idx}"
                         direccion = valvula['dir_var'].get()
                         ciclos_val = valvula['ciclos'].get().zfill(4) if valvula['ciclos'].get() else "0000"
-                        apertura_val = self.convertir_a_segundos(valvula['apertura'].get(), valvula['apertura_unidad'].get())
+                        apertura_val = tiempo
                         cierre_val = self.convertir_a_segundos(valvula['cierre'].get(), valvula['cierre_unidad'].get())
 
                         apertura_str = str(min(apertura_val, 9999)).zfill(4)
                         cierre_str = str(min(cierre_val, 9999)).zfill(4)
 
+                        # Tareas
                         if int(ciclos_val) > 0:
-                            tarea = "B"
+                            tarea = "B"  # Tarea con ciclos
                         elif apertura_val > 0 and cierre_val > 0:
-                            tarea = "C"
+                            tarea = "C"  # Tarea con apertura y cierre
                         elif apertura_val > 0:
-                            tarea = "A"
+                            tarea = "A"  # Solo apertura
                         else:
-                            tarea = "E"
+                            tarea = "E"  # Error
 
                         cadena = f"{motor}{tarea}{direccion}{ciclos_val}{apertura_str}{cierre_str}"
                         cadenas.append(cadena)
-            
+        
                 if cadenas:
                     fase_cadena = "".join(cadenas)
                     cadenas_fases.append(fase_cadena)
@@ -396,37 +412,38 @@ class FormNuevoProceso(ctk.CTkFrame):
             return True
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo iniciar el proceso: {str(e)}")
+            print(f"Error detallado: {traceback.format_exc()}")
             return False
 
     def reiniciar_rutina(self):
         """Reinicia completamente la rutina"""
-        # Detener el proceso si está en ejecución
+        
         if self.proceso_en_ejecucion:
             self.proceso_en_ejecucion = False
             if self.hilo_proceso and self.hilo_proceso.is_alive():
                 self.hilo_proceso.join(timeout=1)
         
-        # Restablecer controles
+        
         self.proceso_pausado = False
         self.pausar_btn.configure(text="Pausar Rutina", state="disabled")
         self.ejecutar_btn.configure(state="normal")
         
-        # Reiniciar estados de ciclo
+        
         for fase, valvulas in self.fases_datos.items():
             for valvula in valvulas:
                 valvula['progreso'].configure(text="0/0")
                 valvula['ciclos_completados'] = 0
         
-        # Eliminar todas las fases excepto la primera
+        # Remove todas las fases excepto la primera
         for nombre_fase in list(self.fases_datos.keys())[1:]:
             self.tabview.delete(nombre_fase)
             del self.fases_datos[nombre_fase]
 
-        #Contador de fases
+        
         self.fase_contador = 1
         self.fase_actual = 0
 
-        # Limpiar y resetear la primera fase
+        # Reset de la primera fase
         primera_fase = list(self.fases_datos.keys())[0]
         for valvula in self.fases_datos[primera_fase]:
             valvula['switch'].deselect()
