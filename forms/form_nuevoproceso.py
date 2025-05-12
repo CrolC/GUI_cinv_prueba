@@ -1,6 +1,7 @@
 import customtkinter as ctk
 import sqlite3
 import sys
+import traceback
 import threading
 import time
 from tkinter import messagebox
