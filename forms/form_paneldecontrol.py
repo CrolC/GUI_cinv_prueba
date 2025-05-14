@@ -3,6 +3,8 @@ import datetime
 from tkinter import messagebox
 import threading
 import time
+import sqlite3
+from datetime import datetime
 
 class FormPaneldeControl(ctk.CTkFrame):
     def __init__(self, panel_principal, user_id):  
@@ -10,14 +12,13 @@ class FormPaneldeControl(ctk.CTkFrame):
         self.user_id = user_id
         
         
-        # Variables de estado
         self.valvulas = ["Al", "As", "Ga", "I", "N", "Mn", "Be", "Mg", "Si"]
         self.estados_valvulas = [False] * 9  # True = abierto, False = cerrado
         self.tiempos_inicio = [None] * 9
         self.contadores_ciclos = [0] * 9
         self.hilos_ejecucion = [None] * 9
         
-        # Configuración principal del layout
+        # Layout
         self.grid_columnconfigure(0, weight=1)  # Proceso Cíclico
         self.grid_columnconfigure(1, weight=1)  # Proceso Puntual
         self.grid_rowconfigure(0, weight=1)
@@ -26,11 +27,9 @@ class FormPaneldeControl(ctk.CTkFrame):
         self.frame_ciclico = ctk.CTkFrame(self, fg_color="#f0f0f0")
         self.frame_ciclico.grid(row=0, column=0, padx=(10,5), pady=10, sticky="nsew")
         
-        
         ctk.CTkLabel(self.frame_ciclico, 
                     text="PROCESO CÍCLICO",
                     font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(5,10))
-        
         
         frame_headers = ctk.CTkFrame(self.frame_ciclico)
         frame_headers.pack(fill="x", padx=5, pady=2)
@@ -45,20 +44,20 @@ class FormPaneldeControl(ctk.CTkFrame):
         # Validación de entrada
         self.validar_cmd = self.register(self.validar_entrada)
         
-        # Controles del proceso cíclico
+        
         self.controles_ciclicos = []
         for i in range(9):
             frame_control = ctk.CTkFrame(self.frame_ciclico)
             frame_control.pack(fill="x", padx=5, pady=2)
             
-            # Nombre de la válvula
+            
             ctk.CTkLabel(frame_control, text=self.valvulas[i], width=60, anchor="w").pack(side="left")
             
-            # Switch para activar/desactivar
+            
             switch = ctk.CTkSwitch(frame_control, text="")
             switch.pack(side="left", padx=5)
             
-            # Frame para Apertura
+            #Apertura
             apertura_frame = ctk.CTkFrame(frame_control, fg_color="transparent")
             apertura_frame.pack(side="left", padx=5)
             apertura = ctk.CTkEntry(apertura_frame, width=50, validate="key", validatecommand=(self.validar_cmd, "%P"))
@@ -69,7 +68,7 @@ class FormPaneldeControl(ctk.CTkFrame):
             apertura.bind("<KeyRelease>", lambda e, ent=apertura, unidad=apertura_unidad: self.validar_tiempo(ent, unidad))
             apertura_unidad.configure(command=lambda v, ent=apertura, unidad=apertura_unidad: self.validar_tiempo(ent, unidad))
             
-            # Frame para Cierre
+            # Cierre
             cierre_frame = ctk.CTkFrame(frame_control, fg_color="transparent")
             cierre_frame.pack(side="left", padx=5)
             cierre = ctk.CTkEntry(cierre_frame, width=50, validate="key", validatecommand=(self.validar_cmd, "%P"))
@@ -90,21 +89,21 @@ class FormPaneldeControl(ctk.CTkFrame):
             
             self.controles_ciclicos.append((switch, apertura, apertura_unidad, cierre, cierre_unidad, ciclos_deseados, ciclos_actual))
 
-        # Botón de ejecución simultánea
+        
         btn_ejecutar = ctk.CTkButton(self.frame_ciclico, text="EJECUCIÓN SIMULTÁNEA", 
                                     fg_color="#06918A", command=self.iniciar_proceso_ciclico)
-        btn_ejecutar.pack(pady=(10,5))
+        btn_ejecutar.pack(pady=(10, 5), anchor="e", padx=(0, 10))
         
         # Frame para Proceso Puntual
         self.frame_puntual = ctk.CTkFrame(self, fg_color="#f0f0f0")
         self.frame_puntual.grid(row=0, column=1, padx=(5,10), pady=10, sticky="nsew")
         
-        # Título del frame puntual
+        
         ctk.CTkLabel(self.frame_puntual, 
                     text="PROCESO PUNTUAL",
                     font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(5,10))
         
-        # Encabezados de columnas
+        
         frame_headers = ctk.CTkFrame(self.frame_puntual)
         frame_headers.pack(fill="x", padx=5, pady=2)
         
@@ -114,20 +113,20 @@ class FormPaneldeControl(ctk.CTkFrame):
         ctk.CTkLabel(frame_headers, text="T. Abierto", width=80).pack(side="left", padx=5)
         ctk.CTkLabel(frame_headers, text="Acciones", width=120).pack(side="left", padx=5)
         
-        # Controles del proceso puntual
+        
         self.controles_puntuales = []
         for i in range(9):
             frame_control = ctk.CTkFrame(self.frame_puntual)
             frame_control.pack(fill="x", padx=5, pady=2)
             
-            # Nombre de la válvula
+            
             ctk.CTkLabel(frame_control, text=self.valvulas[i], width=60, anchor="w").pack(side="left")
             
-            # Estado (LED )
+            # (LED)
             estado = ctk.CTkLabel(frame_control, text="CERRADO", width=80, fg_color="red", corner_radius=5)
             estado.pack(side="left", padx=5)
             
-            # Tiempo de apertura
+            # t de apertura
             tiempo_frame = ctk.CTkFrame(frame_control, fg_color="transparent")
             tiempo_frame.pack(side="left", padx=5)
             tiempo = ctk.CTkEntry(tiempo_frame, width=50, validate="key", validatecommand=(self.validar_cmd, "%P"))
@@ -138,27 +137,26 @@ class FormPaneldeControl(ctk.CTkFrame):
             tiempo.bind("<KeyRelease>", lambda e, ent=tiempo, unidad=tiempo_unidad: self.validar_tiempo(ent, unidad))
             tiempo_unidad.configure(command=lambda v, ent=tiempo, unidad=tiempo_unidad: self.validar_tiempo(ent, unidad))
             
-            # Tiempo transcurrido
+            # t transcurrido
             tiempo_transcurrido = ctk.CTkLabel(frame_control, text="00:00", width=80)
             tiempo_transcurrido.pack(side="left", padx=5)
             
-            # Frame de acciones
+            
             frame_acciones = ctk.CTkFrame(frame_control, fg_color="transparent")
             frame_acciones.pack(side="left", padx=5)
             
-            # Botón de inversión de sentido
+            
             btn_invertir = ctk.CTkButton(frame_acciones, text="Invertir", width=60,
                                        command=lambda idx=i: self.invertir_sentido(idx))
             btn_invertir.pack(side="left", padx=2)
             
-            # Botón de ejecución
+            
             btn_ejecutar = ctk.CTkButton(frame_acciones, text="Ejecutar", width=60,
                                        command=lambda idx=i: self.ejecutar_valvula_puntual(idx))
             btn_ejecutar.pack(side="left", padx=2)
             
             self.controles_puntuales.append((estado, tiempo, tiempo_unidad, tiempo_transcurrido, btn_invertir, btn_ejecutar))
 
-        
         self.pack(padx=10, pady=10, fill="both", expand=True)
 
     def validar_entrada(self, text):
@@ -208,9 +206,97 @@ class FormPaneldeControl(ctk.CTkFrame):
         mins, secs = divmod(segundos, 60)
         return f"{mins:02d}:{secs:02d}"
 
+    def guardar_proceso_db(self, datos_proceso):
+        """Guarda los datos del proceso en la base de datos"""
+        conn = None
+        try:
+            conn = sqlite3.connect("procesos.db")
+            cursor = conn.cursor()
+            
+            cursor.execute('''CREATE TABLE IF NOT EXISTS procesos (
+                           id INTEGER PRIMARY KEY AUTOINCREMENT,
+                           user_id INTEGER,
+                           fecha_inicio TEXT,
+                           fecha_fin TEXT,
+                           hora_instruccion TEXT,
+                           valvula_activada TEXT,
+                           tiempo_valvula INTEGER,
+                           ciclos INTEGER,
+                           estado_valvula TEXT)''')
+            
+            cursor.execute('''INSERT INTO procesos 
+                           (user_id, fecha_inicio, fecha_fin, hora_instruccion, 
+                            valvula_activada, tiempo_valvula, ciclos, estado_valvula)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                        (self.user_id,
+                         datos_proceso['fecha_inicio'],
+                         datos_proceso.get('fecha_fin', ''),
+                         datos_proceso['hora_instruccion'],
+                         datos_proceso['valvula'],
+                         datos_proceso['tiempo'],
+                         datos_proceso.get('ciclos', 0),
+                         datos_proceso['estado']))
+            conn.commit()
+            return True
+        except sqlite3.Error as e:
+            print(f"Error de SQLite al guardar en DB: {e}")
+            return False
+        except Exception as e:
+            print(f"Error inesperado al guardar en DB: {e}")
+            return False
+        finally:
+            if conn:
+                conn.close()
+
+    def actualizar_proceso_db(self, idx, fecha_fin, ciclos_completados=None):
+        """Actualiza un proceso existente en la base de datos"""
+        conn = None
+        try:
+            conn = sqlite3.connect("procesos.db")
+            cursor = conn.cursor()
+            
+            valvula = f"Válvula {self.valvulas[idx]}"
+            
+            
+            cursor.execute('''SELECT id FROM procesos 
+                           WHERE valvula_activada = ? AND fecha_fin = '' 
+                           ORDER BY id DESC LIMIT 1''',
+                        (valvula,))
+            resultado = cursor.fetchone()
+            
+            if resultado:
+                id_proceso = resultado[0]
+                
+                if ciclos_completados is not None:
+                    # Actualizar proceso cíclico
+                    cursor.execute('''UPDATE procesos 
+                                   SET fecha_fin = ?, ciclos = ?
+                                   WHERE id = ?''',
+                                (fecha_fin, ciclos_completados, id_proceso))
+                else:
+                    # Actualizar proceso puntual
+                    cursor.execute('''UPDATE procesos 
+                                   SET fecha_fin = ?
+                                   WHERE id = ?''',
+                                (fecha_fin, id_proceso))
+                
+                conn.commit()
+                return True
+            return False
+        except sqlite3.Error as e:
+            print(f"Error de SQLite al actualizar proceso en DB: {e}")
+            return False
+        except Exception as e:
+            print(f"Error inesperado al actualizar proceso en DB: {e}")
+            return False
+        finally:
+            if conn:
+                conn.close()
+
     def iniciar_proceso_ciclico(self):
         try:
             cadenas = []
+            fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
             for i, (switch, apertura, apertura_unidad, cierre, cierre_unidad, ciclos_deseados, ciclos_actual) in enumerate(self.controles_ciclicos, start=1):
                 if switch.get():
@@ -222,11 +308,11 @@ class FormPaneldeControl(ctk.CTkFrame):
                         messagebox.showerror("Error", f"Los tiempos para {self.valvulas[i-1]} no pueden exceder 9999 segundos (o equivalentes)")
                         return
                     
-                    # Detener cualquier hilo previo
+                    # Stop hilo previo
                     if self.hilos_ejecucion[i-1] and self.hilos_ejecucion[i-1].is_alive():
                         self.hilos_ejecucion[i-1].do_run = False
                     
-                    # Construir cadena para ESP32
+                    # Cadena para ESP32
                     motor = f"M{i}"
                     ciclos_val = ciclos_deseados.get().zfill(4) if ciclos_deseados.get() else "0000"
                     
@@ -245,7 +331,19 @@ class FormPaneldeControl(ctk.CTkFrame):
                     cadena = f"{motor}{tarea}N{ciclos_val}{apertura_str}{cierre_str}"
                     cadenas.append(cadena)
                     
-                    # Iniciar el hilo de ejecución
+                    # Guardar en DB
+                    datos = {
+                        'fecha_inicio': fecha_actual,
+                        'fecha_fin': '',
+                        'hora_instruccion': fecha_actual,
+                        'valvula': f"Válvula {self.valvulas[i-1]}",
+                        'tiempo': apertura_val,
+                        'ciclos': ciclos_val,
+                        'estado': 'A'
+                    }
+                    self.guardar_proceso_db(datos)
+                    
+                    # Start hilo de ejecución
                     self.contadores_ciclos[i-1] = 0
                     ciclos_actual.configure(text="0")
                     
@@ -268,25 +366,38 @@ class FormPaneldeControl(ctk.CTkFrame):
         switch, _, _, _, _, ciclos_deseados_entry, ciclos_actual = self.controles_ciclicos[idx]
         
         ciclos = 0
-        while getattr(threading.current_thread(), "do_run", True) and (ciclos_deseados == 0 or ciclos < ciclos_deseados):
-            # Apertura
-            inicio = time.time()
-            while time.time() - inicio < tiempo_apertura and getattr(threading.current_thread(), "do_run", True):
-                time.sleep(0.1)
-            
-            if not getattr(threading.current_thread(), "do_run", True):
-                break
+        try:
+            while getattr(threading.current_thread(), "do_run", True) and (ciclos_deseados == 0 or ciclos < ciclos_deseados):
+                # Apertura
+                inicio = time.time()
+                while time.time() - inicio < tiempo_apertura and getattr(threading.current_thread(), "do_run", True):
+                    time.sleep(0.1)
                 
-            # Cierre
-            inicio = time.time()
-            while time.time() - inicio < tiempo_cierre and getattr(threading.current_thread(), "do_run", True):
-                time.sleep(0.1)
-            
-            if not getattr(threading.current_thread(), "do_run", True):
-                break
+                if not getattr(threading.current_thread(), "do_run", True):
+                    break
+                    
+                # Cierre
+                inicio = time.time()
+                while time.time() - inicio < tiempo_cierre and getattr(threading.current_thread(), "do_run", True):
+                    time.sleep(0.1)
                 
-            ciclos += 1
-            self.after(0, lambda: ciclos_actual.configure(text=str(ciclos)))
+                if not getattr(threading.current_thread(), "do_run", True):
+                    break
+                    
+                ciclos += 1
+                self.after(0, lambda: ciclos_actual.configure(text=str(ciclos)))
+            
+            # Notificación cuando finaliza
+            if ciclos_deseados > 0 and ciclos >= ciclos_deseados:
+                self.after(0, lambda: messagebox.showinfo("Proceso completado", 
+                        f"Válvula {self.valvulas[idx]} ha completado {ciclos_deseados} ciclos"))
+                
+            # Actualizar base de datos con fecha de finalización (Nota: tengo que modificar a hora de fin)
+            fecha_fin = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.actualizar_proceso_db(idx, fecha_fin, ciclos)
+            
+        except Exception as e:
+            self.after(0, lambda: messagebox.showerror("Error", f"Error en válvula {self.valvulas[idx]}: {str(e)}"))
 
     def ejecutar_valvula_puntual(self, idx):
         estado, tiempo, tiempo_unidad, tiempo_transcurrido, _, _ = self.controles_puntuales[idx]
@@ -302,19 +413,32 @@ class FormPaneldeControl(ctk.CTkFrame):
             tiempo.configure(border_color="red")
             return
         
-        # Construccion cadena para ESP32
+        # Construccion cadena (para impresión)
         motor = f"M{idx+1}"
         tarea = "A"
-        direccion = "D"  # Por defecto abrir (derecha)
+        direccion = "D"
         cadena = f"{motor}{tarea}{direccion}0000{str(segundos).zfill(4)}0000"
         print(f"Cadena enviada a ESP32: {cadena}")
         
-        # Actualizar interfaz
+        # Guardar en DB
+        fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        datos = {
+            'fecha_inicio': fecha_actual,
+            'fecha_fin': '',
+            'hora_instruccion': fecha_actual,
+            'valvula': f"Válvula {self.valvulas[idx]}",
+            'tiempo': segundos,
+            'ciclos': 0,
+            'estado': 'A'
+        }
+        self.guardar_proceso_db(datos)
+        
+        # Actualiza
         self.estados_valvulas[idx] = True
         self.tiempos_inicio[idx] = time.time()
         estado.configure(text="ABIERTO", fg_color="green")
         
-        # Iniciar temporizador
+        #Inico de temporizador
         self.actualizar_tiempo_transcurrido(idx, segundos)
 
     def actualizar_tiempo_transcurrido(self, idx, duracion_total):
@@ -334,8 +458,14 @@ class FormPaneldeControl(ctk.CTkFrame):
             self.estados_valvulas[idx] = False
             estado.configure(text="CERRADO", fg_color="red")
             tiempo_transcurrido.configure(text="00:00")
+            
+            # Notificación de finalización
+            messagebox.showinfo("Proceso completado", 
+                             f"Válvula {self.valvulas[idx]} ha completado su tiempo de apertura")
+            
+            # Actualizar fecha de finalización en DB (Nota: tengo que modificar a hora de fin)
+            fecha_fin = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.actualizar_proceso_db(idx, fecha_fin)
 
     def invertir_sentido(self, idx):
-        
         messagebox.showinfo("Info", f"Sentido de la válvula {self.valvulas[idx]} invertido")
-        
