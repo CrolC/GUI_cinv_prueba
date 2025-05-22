@@ -5,13 +5,16 @@ import threading
 import time
 import sqlite3
 from datetime import datetime
+import serial
+import serial.tools.list_ports
 
 class FormPaneldeControl(ctk.CTkFrame):
     def __init__(self, panel_principal, user_id):  
         super().__init__(panel_principal)
         self.user_id = user_id
         
-        
+        self.serial_connection = None#
+        self.configurar_puerto_serial()#
         self.valvulas = ["Al", "As", "Ga", "I", "N", "Mn", "Be", "Mg", "Si"]
         self.estados_valvulas = [False] * 9  # True = abierto, False = cerrado
         self.tiempos_inicio = [None] * 9
@@ -158,6 +161,30 @@ class FormPaneldeControl(ctk.CTkFrame):
             self.controles_puntuales.append((estado, tiempo, tiempo_unidad, tiempo_transcurrido, btn_invertir, btn_ejecutar))
 
         self.pack(padx=10, pady=10, fill="both", expand=True)
+
+
+    def configurar_puerto_serial(self):
+        """Intenta conectar automáticamente a la ESP32"""
+        try:
+            puertos = serial.tools.list_ports.comports()
+            if not puertos:
+                messagebox.showwarning("Sin conexión", "No se detectaron puertos seriales. Conecta la ESP32.")
+                return
+
+            for puerto in puertos:
+                if 'USB' in puerto.description or 'Serial' in puerto.description or 'ESP' in puerto.description:
+                    try:
+                        self.serial_connection = serial.Serial(port=puerto.device, baudrate=115200, timeout=1)
+                        print(f"Conectado a {puerto.device}")
+                        return
+                    except Exception as e:
+                        print(f"No se pudo abrir {puerto.device}: {e}")
+
+            messagebox.showerror("ESP32 no detectada", "No se encontró un dispositivo ESP32 conectado.")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo configurar el puerto serial: {str(e)}")
+
+
 
     def validar_entrada(self, text):
         if text == "":
@@ -354,7 +381,25 @@ class FormPaneldeControl(ctk.CTkFrame):
             
             if cadenas:
                 cadena_final = "".join(cadenas)
-                print(f"Cadena enviada a ESP32: {cadena_final}")
+                print(f"Cadena a enviar: {cadena_final}")
+                # Enviar por serial si está conectado
+                if self.serial_connection and self.serial_connection.is_open:
+                    try:
+                        self.serial_connection.write(cadena_final.encode('utf-8'))
+                        print("Cadena enviada a ESP32...")
+                        time.sleep(0.1)
+                        if self.serial_connection.in_waiting:
+                            respuesta = self.serial_connection.readline().decode('utf-8').strip()
+                            print(f"Respuesta ESP32: {respuesta}")
+                            if "OK" not in respuesta:
+                                messagebox.showwarning("Atención", "La ESP32 no confirmó la recepción de la cadena")
+                    except Exception as e:
+                        messagebox.showerror("Error", f"No se pudo enviar la cadena: {str(e)}")
+                        return
+                else:
+                    messagebox.showerror("Error", "No hay conexión serial establecida con la ESP32")
+                    return
+
                 messagebox.showinfo("Éxito", "Proceso cíclico iniciado correctamente")
             else:
                 messagebox.showwarning("Advertencia", "No hay válvulas activadas para ejecutar")
@@ -419,6 +464,21 @@ class FormPaneldeControl(ctk.CTkFrame):
         direccion = "D"
         cadena = f"{motor}{tarea}{direccion}0000{str(segundos).zfill(4)}0000"
         print(f"Cadena enviada a ESP32: {cadena}")
+
+        # Enviar por serial si está conectado
+        if self.serial_connection and self.serial_connection.is_open:
+            try:
+                self.serial_connection.write(cadena.encode('utf-8'))
+                print("Cadena enviada a ESP32")
+                time.sleep(0.1)
+                if self.serial_connection.in_waiting:
+                    respuesta = self.serial_connection.readline().decode('utf-8').strip()
+                    print(f"Respuesta ESP32: {respuesta}")
+            except Exception as e:
+                messagebox.showerror("Error", f"No se pudo enviar la cadena: {str(e)}")
+        else:
+            messagebox.showerror("Error", "No hay conexión serial establecida con la ESP32")
+
         
         # Guardar en DB
         fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
