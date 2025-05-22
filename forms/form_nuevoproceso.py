@@ -6,6 +6,8 @@ import threading
 import time
 from tkinter import messagebox
 import datetime
+import serial
+import serial.tools.list_ports
 
 COLOR_CUERPO_PRINCIPAL = "#f4f8f7"
 
@@ -13,8 +15,8 @@ class FormNuevoProceso(ctk.CTkFrame):
     def __init__(self, panel_principal, user_id):
         super().__init__(panel_principal, fg_color=COLOR_CUERPO_PRINCIPAL)
         self.user_id = user_id
+        self.serial_connection = None  # Conexión serial
         self.pack(fill="both", expand=True) 
-        
         
         self.proceso_en_ejecucion = False
         self.proceso_pausado = False
@@ -26,18 +28,19 @@ class FormNuevoProceso(ctk.CTkFrame):
         self.fases_datos = {}
         self.valvulas_activas = {}
 
-        # Registrar función de validación ANTES de usarla
+        
+        self.configurar_puerto_serial()
+
+        
         self.validar_cmd = self.register(self.validar_entrada)
 
         
         self.main_frame = ctk.CTkFrame(self, fg_color=COLOR_CUERPO_PRINCIPAL)
         self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        
         self.scrollable_frame = ctk.CTkScrollableFrame(self.main_frame)
         self.scrollable_frame.pack(fill="both", expand=True)
 
-        
         self.tabview = ctk.CTkTabview(self.scrollable_frame)
         self.tabview.pack(fill="both", expand=True, padx=10, pady=10)
         
@@ -47,7 +50,7 @@ class FormNuevoProceso(ctk.CTkFrame):
         self.botones_generales_frame = ctk.CTkFrame(self.main_frame)
         self.botones_generales_frame.pack(fill="x", padx=10, pady=(0, 10))
 
-        
+        #Btn reiniciar
         self.reiniciar_btn = ctk.CTkButton(
             self.botones_generales_frame, 
             text="Reiniciar Rutina", 
@@ -56,6 +59,7 @@ class FormNuevoProceso(ctk.CTkFrame):
         )
         self.reiniciar_btn.pack(side="right", padx=5)
 
+        # Btn pausar
         self.pausar_btn = ctk.CTkButton(
             self.botones_generales_frame, 
             text="Pausar Rutina", 
@@ -65,6 +69,7 @@ class FormNuevoProceso(ctk.CTkFrame):
         )
         self.pausar_btn.pack(side="right", padx=5)
 
+        # Btn ejecutar
         self.ejecutar_btn = ctk.CTkButton(
             self.botones_generales_frame, 
             text="Ejecutar Rutina", 
@@ -72,6 +77,43 @@ class FormNuevoProceso(ctk.CTkFrame):
             command=self.iniciar_proceso
         )
         self.ejecutar_btn.pack(side="right", padx=5)
+
+
+    def configurar_puerto_serial(self):
+        """Configura el puerto serial automáticamente"""
+        try:
+            puertos = serial.tools.list_ports.comports()
+
+            if not puertos:
+                messagebox.showwarning("Sin conexión", "No se detectaron puertos seriales. Asegúrate de que la ESP32 esté conectada.")
+                print("No se detectaron puertos seriales.")
+                return
+
+            print("Puertos detectados:")
+            for p in puertos:
+                print(f"- {p.device}: {p.description}")
+
+            for puerto in puertos:
+                if 'USB' in puerto.description or 'Serial' in puerto.description or 'ESP' in puerto.description:
+                    try:
+                        self.serial_connection = serial.Serial(
+                            port=puerto.device,
+                            baudrate=115200,
+                            timeout=1
+                        )
+                        print(f"Conectado a {puerto.device}")
+                        return
+                    except Exception as e:
+                        print(f"No se pudo abrir {puerto.device}: {e}")
+
+            
+            messagebox.showerror("ESP32 no detectada", 
+                "No se encontró un dispositivo ESP32.\n\n"
+                "Verifica que esté correctamente conectada y que el driver esté instalado.")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo configurar el puerto serial: {str(e)}")
+            print(f"Error al configurar el puerto serial: {e}")
+
 
     def validar_entrada(self, text):
         """Validación de entrada numérica"""
@@ -132,7 +174,7 @@ class FormNuevoProceso(ctk.CTkFrame):
         elementos = ["Al", "As", "Ga", "I", "N", "Mn", "Be", "Mg", "Si"]
         self.fases_datos[nombre_fase] = []
 
-        
+        #Encabezados
         header = ctk.CTkFrame(frame_fase)
         header.pack(fill="x", padx=5, pady=2)
         ctk.CTkLabel(header, text="Válvula", width=80).pack(side="left", padx=5)
@@ -146,10 +188,11 @@ class FormNuevoProceso(ctk.CTkFrame):
             fila = ctk.CTkFrame(frame_fase)
             fila.pack(fill="x", padx=5, pady=5)
 
+            # Switch para activar/desactivar válvula
             switch = ctk.CTkSwitch(fila, text=elemento)
             switch.pack(side="left", padx=5)
 
-            # Apertura
+            # Config de apertura
             apertura_frame = ctk.CTkFrame(fila)
             apertura_frame.pack(side="left", padx=5)
             apertura = ctk.CTkEntry(apertura_frame, width=50, validate="key", 
@@ -163,7 +206,7 @@ class FormNuevoProceso(ctk.CTkFrame):
             apertura_unidad.configure(command=lambda v, ent=apertura, unidad=apertura_unidad: 
                                     self.validar_tiempo(ent, unidad))
 
-            # Cierre
+            # Config de cierre
             cierre_frame = ctk.CTkFrame(fila)
             cierre_frame.pack(side="left", padx=5)
             cierre = ctk.CTkEntry(cierre_frame, width=50, validate="key", 
@@ -177,12 +220,12 @@ class FormNuevoProceso(ctk.CTkFrame):
             cierre_unidad.configure(command=lambda v, ent=cierre, unidad=cierre_unidad: 
                                   self.validar_tiempo(ent, unidad))
 
-            # Ciclos
+            # Config de ciclos
             ciclos = ctk.CTkEntry(fila, width=60, validate="key", 
                                 validatecommand=(self.validar_cmd, "%P"))
             ciclos.pack(side="left", padx=5)
 
-            # Dirección
+            # Config de dirección
             dir_var = ctk.StringVar(value="N")
             btn_izq = ctk.CTkButton(fila, text="I", width=40, 
                                    command=lambda v=dir_var: self.seleccionar_direccion(v, btn_izq, btn_der, "I"))
@@ -191,10 +234,11 @@ class FormNuevoProceso(ctk.CTkFrame):
             btn_izq.pack(side="left", padx=5)
             btn_der.pack(side="left", padx=5)
 
-            # Progreso
+            
             progreso = ctk.CTkLabel(fila, text="0/0", width=100)
             progreso.pack(side="left", padx=5)
 
+            
             self.fases_datos[nombre_fase].append({
                 'switch': switch,
                 'dir_var': dir_var,
@@ -208,7 +252,7 @@ class FormNuevoProceso(ctk.CTkFrame):
                 'tiempo_transcurrido': 0
             })
 
-        
+        # Botones para agregar/eliminar fases
         botones_frame = ctk.CTkFrame(self.tabview.tab(nombre_fase))
         botones_frame.pack(side="bottom", pady=10)
         ctk.CTkButton(botones_frame, text="Agregar Fase", fg_color="#06918A",
@@ -240,7 +284,7 @@ class FormNuevoProceso(ctk.CTkFrame):
                             tiempo = self.convertir_a_segundos(valvula['apertura'].get(), valvula['apertura_unidad'].get())
                             ciclos = int(valvula['ciclos'].get()) if valvula['ciclos'].get() else 0
                             
-                            if tiempo > 0:  # Solo tiempo de apertura
+                            if tiempo > 0:
                                 valvulas_configuradas = True
                                 key = f"F{fase_idx+1}V{valvula_idx+1}"
                                 self.valvulas_activas[key] = {
@@ -252,7 +296,6 @@ class FormNuevoProceso(ctk.CTkFrame):
                                     'tiempo_transcurrido': 0,
                                     'progreso': valvula['progreso']
                                 }
-                                # Mostrar progreso diferente según tenga ciclos o no
                                 if ciclos > 0:
                                     valvula['progreso'].configure(text=f"0/{ciclos}")
                                 else:
@@ -265,7 +308,7 @@ class FormNuevoProceso(ctk.CTkFrame):
                 messagebox.showwarning("Advertencia", "Debe configurar al menos una válvula con tiempo de apertura válido")
                 return
             
-            if not self.enviar_cadena():
+            if not self.enviar_cadena_serial():
                 return
             
             self.proceso_en_ejecucion = True
@@ -278,6 +321,87 @@ class FormNuevoProceso(ctk.CTkFrame):
             self.hilo_proceso.start()
             
             messagebox.showinfo("Éxito", "Proceso iniciado correctamente")
+
+    def enviar_cadena_serial(self):
+        """Envía la cadena de comandos al dispositivo ESP32 por serial"""
+        try:
+            fecha_actual = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cadenas_fases = []
+        
+            for fase_idx, (nombre_fase, valvulas) in enumerate(self.fases_datos.items()):
+                cadenas = []
+                for valvula_idx, valvula in enumerate(valvulas, start=1):
+                    if valvula['switch'].get():
+                        # Construir datos para DB
+                        tiempo = self.convertir_a_segundos(valvula['apertura'].get(), valvula['apertura_unidad'].get())
+                        ciclos = valvula['ciclos'].get() if valvula['ciclos'].get() else 0
+                        
+                        datos = {
+                            'fecha_inicio': fecha_actual,
+                            'fecha_fin': '',
+                            'hora_instruccion': fecha_actual,
+                            'valvula': f"Válvula {valvula_idx}",
+                            'tiempo': tiempo,
+                            'ciclos': ciclos,
+                            'estado': 'A'
+                        }
+                        self.guardar_proceso_db(datos)
+                    
+                        # Construir cadena para ESP32
+                        motor = f"M{valvula_idx}"
+                        direccion = valvula['dir_var'].get()
+                        ciclos_val = valvula['ciclos'].get().zfill(4) if valvula['ciclos'].get() else "0000"
+                        apertura_val = tiempo
+                        cierre_val = self.convertir_a_segundos(valvula['cierre'].get(), valvula['cierre_unidad'].get())
+
+                        apertura_str = str(min(apertura_val, 9999)).zfill(4)
+                        cierre_str = str(min(cierre_val, 9999)).zfill(4)
+
+                        if int(ciclos_val) > 0:
+                            tarea = "B"
+                        elif apertura_val > 0 and cierre_val > 0:
+                            tarea = "C"
+                        elif apertura_val > 0:
+                            tarea = "A"
+                        else:
+                            tarea = "E"
+
+                        cadena = f"{motor}{tarea}{direccion}{ciclos_val}{apertura_str}{cierre_str}"
+                        cadenas.append(cadena)
+        
+                if cadenas:
+                    fase_cadena = "".join(cadenas)
+                    cadenas_fases.append(fase_cadena)
+
+            # Unir todas las fases (separador = &)
+            cadena_final = "&".join(cadenas_fases) if cadenas_fases else ""
+            
+            if cadena_final:
+                print(f"Cadena a enviar: {cadena_final}")
+                
+                # Enviar por serial si hay conexión
+                if self.serial_connection and self.serial_connection.is_open:
+                    self.serial_connection.write(cadena_final.encode('utf-8'))
+                    print("Cadena enviada a ESP32")
+                    
+                    # Esperar confirmación
+                    time.sleep(0.1)
+                    if self.serial_connection.in_waiting:
+                        respuesta = self.serial_connection.readline().decode('utf-8').strip()
+                        print(f"Respuesta ESP32: {respuesta}")
+                        
+                        if "OK" not in respuesta:
+                            messagebox.showerror("Error", "El dispositivo no confirmó la recepción")
+                            return False
+                else:
+                    messagebox.showerror("Error", "No hay conexión serial establecida")
+                    return False
+            
+            return True
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo enviar la cadena: {str(e)}")
+            print(f"Error detallado: {traceback.format_exc()}")
+            return False
 
     def ejecutar_proceso(self):
         """Ejecuta el proceso fase por fase"""
@@ -349,98 +473,44 @@ class FormNuevoProceso(ctk.CTkFrame):
             if self.proceso_pausado:
                 self.tiempo_pausa = time.time()
                 self.pausar_btn.configure(text="Reanudar Rutina")
+                
+                # Enviar comando de pausa a ESP32
+                if self.serial_connection and self.serial_connection.is_open:
+                    self.serial_connection.write(b"PAUSE")
             else:
-                # Ajustar tiempo de inicio por pausa
                 self.tiempo_inicio_fase += time.time() - self.tiempo_pausa
                 self.pausar_btn.configure(text="Pausar Rutina")
-
-    def enviar_cadena(self):
-        """Envía la cadena de comandos al dispositivo"""
-        try:
-            fecha_actual = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cadenas_fases = []
-        
-            for fase_idx, (nombre_fase, valvulas) in enumerate(self.fases_datos.items()):
-                cadenas = []
-                for valvula_idx, valvula in enumerate(valvulas, start=1):
-                    if valvula['switch'].get():
-                        # Construir datos para DB
-                        tiempo = self.convertir_a_segundos(valvula['apertura'].get(), valvula['apertura_unidad'].get())
-                        ciclos = valvula['ciclos'].get() if valvula['ciclos'].get() else 0
-                        
-                        datos = {
-                            'fecha_inicio': fecha_actual,
-                            'fecha_fin': '',  # Se actualizará al finalizar
-                            'hora_instruccion': fecha_actual,
-                            'valvula': f"Válvula {valvula_idx}",
-                            'tiempo': tiempo,
-                            'ciclos': ciclos,
-                            'estado': 'A'  # A = Abierta
-                        }
-                        self.guardar_proceso_db(datos)
-                    
-                        # Construir cadena para ESP32
-                        motor = f"M{valvula_idx}"
-                        direccion = valvula['dir_var'].get()
-                        ciclos_val = valvula['ciclos'].get().zfill(4) if valvula['ciclos'].get() else "0000"
-                        apertura_val = tiempo
-                        cierre_val = self.convertir_a_segundos(valvula['cierre'].get(), valvula['cierre_unidad'].get())
-
-                        apertura_str = str(min(apertura_val, 9999)).zfill(4)
-                        cierre_str = str(min(cierre_val, 9999)).zfill(4)
-
-                        # Tareas
-                        if int(ciclos_val) > 0:
-                            tarea = "B"  # Tarea con ciclos
-                        elif apertura_val > 0 and cierre_val > 0:
-                            tarea = "C"  # Tarea con apertura y cierre
-                        elif apertura_val > 0:
-                            tarea = "A"  # Solo apertura
-                        else:
-                            tarea = "E"  # Error
-
-                        cadena = f"{motor}{tarea}{direccion}{ciclos_val}{apertura_str}{cierre_str}"
-                        cadenas.append(cadena)
-        
-                if cadenas:
-                    fase_cadena = "".join(cadenas)
-                    cadenas_fases.append(fase_cadena)
-
-            
-            cadena_final = "&".join(cadenas_fases) if cadenas_fases else "(Ninguna válvula activa)"
-            print(f"Cadena enviada a dispositivo: {cadena_final}")
-            
-            return True
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo iniciar el proceso: {str(e)}")
-            print(f"Error detallado: {traceback.format_exc()}")
-            return False
+                
+                # Enviar comando de reanudar a ESP32
+                if self.serial_connection and self.serial_connection.is_open:
+                    self.serial_connection.write(b"RESUME")
 
     def reiniciar_rutina(self):
         """Reinicia completamente la rutina"""
-        
         if self.proceso_en_ejecucion:
             self.proceso_en_ejecucion = False
             if self.hilo_proceso and self.hilo_proceso.is_alive():
                 self.hilo_proceso.join(timeout=1)
-        
+            
+            # Enviar comando de detener a ESP32
+            if self.serial_connection and self.serial_connection.is_open:
+                self.serial_connection.write(b"STOP")
         
         self.proceso_pausado = False
         self.pausar_btn.configure(text="Pausar Rutina", state="disabled")
         self.ejecutar_btn.configure(state="normal")
         
-        
+        # Reiniciar contadores y estados
         for fase, valvulas in self.fases_datos.items():
             for valvula in valvulas:
                 valvula['progreso'].configure(text="0/0")
                 valvula['ciclos_completados'] = 0
         
-        # Remove todas las fases excepto la primera
+        # Eliminar fases adicionales
         for nombre_fase in list(self.fases_datos.keys())[1:]:
             self.tabview.delete(nombre_fase)
             del self.fases_datos[nombre_fase]
 
-        
         self.fase_contador = 1
         self.fase_actual = 0
 
@@ -460,7 +530,6 @@ class FormNuevoProceso(ctk.CTkFrame):
         try:
             conn = sqlite3.connect("procesos.db")
             cursor = conn.cursor()
-            
             
             cursor.execute('''CREATE TABLE IF NOT EXISTS procesos (
                            id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -491,3 +560,9 @@ class FormNuevoProceso(ctk.CTkFrame):
         except Exception as e:
             print(f"Error al guardar en DB: {e}")
             return False
+
+    def __del__(self):
+        """Cerrar conexión serial al destruir el objeto"""
+        if self.serial_connection and self.serial_connection.is_open:
+            self.serial_connection.close()
+            print("Conexión serial cerrada")
