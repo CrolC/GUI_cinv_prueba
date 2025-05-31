@@ -12,10 +12,8 @@ class FormHistorial(ctk.CTkFrame):
         self.configure(fg_color="#f4f8f7")  
         self.pack(fill="both", expand=True, padx=10, pady=10)  
         
-        
         self.main_frame = ctk.CTkFrame(self)
         self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
-        
         
         self.title_label = ctk.CTkLabel(
             self.main_frame, 
@@ -24,10 +22,8 @@ class FormHistorial(ctk.CTkFrame):
         )
         self.title_label.pack(pady=(0, 20))
         
-        
         self.button_frame = ctk.CTkFrame(self.main_frame)
         self.button_frame.pack(fill="x", pady=(0, 10))
-        
         
         self.actualizar_btn = ctk.CTkButton(
             self.button_frame, 
@@ -46,7 +42,6 @@ class FormHistorial(ctk.CTkFrame):
             width=120
         )
         self.reporte_btn.pack(side="left", padx=5)
-        
         
         self.tree_frame = ctk.CTkFrame(self.main_frame)
         self.tree_frame.pack(fill="both", expand=True)
@@ -74,20 +69,18 @@ class FormHistorial(ctk.CTkFrame):
                  background=[('selected', '#007bff')],
                  foreground=[('selected', 'white')])
         
-        
         self.treeview = ttk.Treeview(
             self.tree_frame,
-            columns=("fecha_inicio", "hora_instruccion", "fecha_fin",
+            columns=("fecha_inicio", "hora_instruccion", "hora_fin",
                     "valvula", "tiempo", "ciclos", "estado"),
             show="headings",
             selectmode="browse"
         )
         
-        
         columnas = [
             ("fecha_inicio", "Fecha Inicio", 100),  
             ("hora_instruccion", "Hora Instrucción", 100),
-            ("fecha_fin", "Fecha Fin", 100),
+            ("hora_fin", "Hora Fin", 100),
             ("valvula", "Válvula", 100),
             ("tiempo", "Tiempo (s)", 80),
             ("ciclos", "Ciclos", 80),
@@ -97,7 +90,6 @@ class FormHistorial(ctk.CTkFrame):
         for col, text, width in columnas:
             self.treeview.heading(col, text=text, anchor="w")
             self.treeview.column(col, width=width, anchor="w", stretch=False)
-        
         
         self.scrollbar = ctk.CTkScrollbar(
             self.tree_frame,
@@ -112,13 +104,10 @@ class FormHistorial(ctk.CTkFrame):
     def cargar_historial(self):
         """Carga los datos ordenados según la estructura de la base de datos"""
         try:
-            
             self.treeview.delete(*self.treeview.get_children())
-            
             
             conn = sqlite3.connect("procesos.db")
             cursor = conn.cursor()
-            
             
             cursor.execute("""
                 SELECT 
@@ -137,32 +126,35 @@ class FormHistorial(ctk.CTkFrame):
             procesos = cursor.fetchall()
             conn.close()
             
-            
             for proceso in procesos:
-                # YYYY-MM-DD
+                # Procesar fecha_inicio (YYYY-MM-DD)
                 fecha_inicio = proceso[0]
                 if fecha_inicio and ' ' in fecha_inicio:
                     fecha_inicio = fecha_inicio.split(' ')[0]
                 
-                # HH:MM:SS
+                # Procesar hora_instruccion (HH:MM:SS)
                 hora_instruccion = proceso[1]
                 if hora_instruccion and ' ' in hora_instruccion:
                     hora_instruccion = hora_instruccion.split(' ')[1]
                 
-                # YYYY-MM-DD
-                fecha_fin = proceso[2]
-                if fecha_fin and ' ' in fecha_fin:
-                    fecha_fin = fecha_fin.split(' ')[0]
-                
+                # Procesar hora_fin (extraer solo la hora de fecha_fin)
+                hora_fin = ""
+                if proceso[2]:  # Si hay fecha_fin
+                    if ' ' in proceso[2]:
+                        # Extraer solo la parte de la hora
+                        hora_fin = proceso[2].split(' ')[1]
+                    else:
+                        # Si solo tiene fecha, dejamos vacío
+                        hora_fin = ""
                 
                 valores = (
-                    fecha_inicio,  # solo fecha
+                    fecha_inicio,      # solo fecha
                     hora_instruccion,  # solo hora
-                    fecha_fin,  # solo fecha
-                    proceso[3],  # valvula
-                    proceso[4],  # tiempo
-                    proceso[5],  # ciclos
-                    proceso[6]   # estado
+                    hora_fin,          # solo hora de fin
+                    proceso[3],        # valvula
+                    proceso[4],        # tiempo
+                    proceso[5],        # ciclos
+                    proceso[6]         # estado
                 )
                 self.treeview.insert("", "end", values=valores)
                 
@@ -181,7 +173,6 @@ class FormHistorial(ctk.CTkFrame):
         valores = item['values']
         
         try:
-           
             nombre_archivo = f"reporte_proceso_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
             ruta_archivo = filedialog.asksaveasfilename(
                 defaultextension=".txt",
@@ -192,7 +183,6 @@ class FormHistorial(ctk.CTkFrame):
             if not ruta_archivo:
                 return
                 
-            
             contenido = [
                 "REPORTE DEL SISTEMA MBE",
                 "="*50,
@@ -202,14 +192,13 @@ class FormHistorial(ctk.CTkFrame):
                 "-"*50,
                 f"Fecha de inicio: {valores[0]}",
                 f"Hora de instrucción: {valores[1]}",
-                f"Fecha de fin: {valores[2]}",
+                f"Hora de fin: {valores[2] if valores[2] else 'No registrada'}",
                 f"Válvula activada: {valores[3]}",
                 f"Tiempo de activación: {valores[4]} segundos",
                 f"Ciclos completados: {valores[5]}",
                 f"Estado: {valores[6]}"
             ]
             
-           
             with open(ruta_archivo, 'w', encoding='utf-8') as f:
                 f.write("\n".join(contenido))
                 
