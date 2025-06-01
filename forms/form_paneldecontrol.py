@@ -4,14 +4,17 @@ from tkinter import messagebox
 import threading
 import time
 import sqlite3
-from datetime import datetime
+from datetime import datetime, date
 import serial
 import serial.tools.list_ports
+import uuid
 
 class FormPaneldeControl(ctk.CTkFrame):
     def __init__(self, panel_principal, user_id):  
         super().__init__(panel_principal)
         self.user_id = user_id
+        self.proceso_id = self.generar_proceso_id_diario()  # ID único por día
+        self.ultima_fecha_reinicio = date.today()  # Para controlar cambios de día
         
         self.serial_connection = None
         self.configurar_puerto_serial()
@@ -55,15 +58,15 @@ class FormPaneldeControl(ctk.CTkFrame):
             
             ctk.CTkLabel(frame_control, text=self.valvulas[i], width=60, anchor="w").pack(side="left")
             
-            switch = ctk.CTkSwitch(frame_control, text="")
+            switch = ctk.CTkSwitch(frame_control, text="", command=lambda idx=i: self.toggle_controles_ciclicos(idx))
             switch.pack(side="left", padx=5)
             
             # Apertura
             apertura_frame = ctk.CTkFrame(frame_control, fg_color="transparent")
             apertura_frame.pack(side="left", padx=5)
-            apertura = ctk.CTkEntry(apertura_frame, width=50, validate="key", validatecommand=(self.validar_cmd, "%P"))
+            apertura = ctk.CTkEntry(apertura_frame, width=50, validate="key", validatecommand=(self.validar_cmd, "%P"), state="disabled")
             apertura.pack(side="left")
-            apertura_unidad = ctk.CTkOptionMenu(apertura_frame, values=["s", "min", "h"], width=50)
+            apertura_unidad = ctk.CTkOptionMenu(apertura_frame, values=["s", "min", "h"], width=50, state="disabled")
             apertura_unidad.set("s")
             apertura_unidad.pack(side="left", padx=5)
             apertura.bind("<KeyRelease>", lambda e, ent=apertura, unidad=apertura_unidad: self.validar_tiempo(ent, unidad))
@@ -72,16 +75,16 @@ class FormPaneldeControl(ctk.CTkFrame):
             # Cierre
             cierre_frame = ctk.CTkFrame(frame_control, fg_color="transparent")
             cierre_frame.pack(side="left", padx=5)
-            cierre = ctk.CTkEntry(cierre_frame, width=50, validate="key", validatecommand=(self.validar_cmd, "%P"))
+            cierre = ctk.CTkEntry(cierre_frame, width=50, validate="key", validatecommand=(self.validar_cmd, "%P"), state="disabled")
             cierre.pack(side="left")
-            cierre_unidad = ctk.CTkOptionMenu(cierre_frame, values=["s", "min", "h"], width=50)
+            cierre_unidad = ctk.CTkOptionMenu(cierre_frame, values=["s", "min", "h"], width=50, state="disabled")
             cierre_unidad.set("s")
             cierre_unidad.pack(side="left", padx=5)
             cierre.bind("<KeyRelease>", lambda e, ent=cierre, unidad=cierre_unidad: self.validar_tiempo(ent, unidad))
             cierre_unidad.configure(command=lambda v, ent=cierre, unidad=cierre_unidad: self.validar_tiempo(ent, unidad))
             
             # Ciclos deseados
-            ciclos_deseados = ctk.CTkEntry(frame_control, width=60, validate="key", validatecommand=(self.validar_cmd, "%P"))
+            ciclos_deseados = ctk.CTkEntry(frame_control, width=60, validate="key", validatecommand=(self.validar_cmd, "%P"), state="disabled")
             ciclos_deseados.pack(side="left", padx=5)
             
             # Ciclos actuales
@@ -90,9 +93,17 @@ class FormPaneldeControl(ctk.CTkFrame):
             
             self.controles_ciclicos.append((switch, apertura, apertura_unidad, cierre, cierre_unidad, ciclos_deseados, ciclos_actual))
 
-        btn_ejecutar = ctk.CTkButton(self.frame_ciclico, text="EJECUCIÓN SIMULTÁNEA", 
+        # Frame de botones para proceso cíclico
+        frame_botones_ciclico = ctk.CTkFrame(self.frame_ciclico, fg_color="transparent")
+        frame_botones_ciclico.pack(fill="x", padx=5, pady=(5,10))
+        
+        btn_reiniciar_ciclico = ctk.CTkButton(frame_botones_ciclico, text="REINICIAR", width=100,
+                                            command=self.reiniciar_ciclico)
+        btn_reiniciar_ciclico.pack(side="right", padx=5)
+        
+        btn_ejecutar_ciclico = ctk.CTkButton(frame_botones_ciclico, text="EJECUTAR", 
                                     fg_color="#06918A", command=self.iniciar_proceso_ciclico)
-        btn_ejecutar.pack(pady=(10, 5), anchor="e", padx=(0, 10))
+        btn_ejecutar_ciclico.pack(side="right", padx=5)
         
         # Frame para Proceso Puntual
         self.frame_puntual = ctk.CTkFrame(self, fg_color="#f0f0f0")
@@ -101,55 +112,82 @@ class FormPaneldeControl(ctk.CTkFrame):
         ctk.CTkLabel(self.frame_puntual, 
                     text="PROCESO PUNTUAL",
                     font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(5,10))
-        
+                
+        # Encabezados
         frame_headers = ctk.CTkFrame(self.frame_puntual)
         frame_headers.pack(fill="x", padx=5, pady=2)
-        
-        ctk.CTkLabel(frame_headers, text="Válvula", width=60, anchor="w").pack(side="left")
-        ctk.CTkLabel(frame_headers, text="Estado", width=80).pack(side="left", padx=5)
-        ctk.CTkLabel(frame_headers, text="Tiempo", width=80).pack(side="left", padx=5)
-        ctk.CTkLabel(frame_headers, text="T. Abierto", width=80).pack(side="left", padx=5)
-        ctk.CTkLabel(frame_headers, text="Acciones", width=120).pack(side="left", padx=5)
-        
+
+        # Posición de texto encabezado
+        col_widths = {
+            'valvula': 70,
+            'activar': 70,
+            'estado': 100,
+            'tiempo': 120,
+            't_abierto': 90,
+            'acciones': 100
+        }
+
+        ctk.CTkLabel(frame_headers, text="Válvula", width=col_widths['valvula'], anchor="w").grid(row=0, column=0, padx=(0,5))
+        ctk.CTkLabel(frame_headers, text="Activar", width=col_widths['activar'], anchor="center").grid(row=0, column=1, padx=5)
+        ctk.CTkLabel(frame_headers, text="Estado", width=col_widths['estado'], anchor="center").grid(row=0, column=2, padx=5)
+        ctk.CTkLabel(frame_headers, text="Tiempo", width=col_widths['tiempo'], anchor="center").grid(row=0, column=3, padx=5)
+        ctk.CTkLabel(frame_headers, text="T. Abierto", width=col_widths['t_abierto'], anchor="center").grid(row=0, column=4, padx=5)
+        ctk.CTkLabel(frame_headers, text="Acciones", width=col_widths['acciones'], anchor="center").grid(row=0, column=5, padx=5)
+
+        # Controles
         self.controles_puntuales = []
         for i in range(9):
             frame_control = ctk.CTkFrame(self.frame_puntual)
             frame_control.pack(fill="x", padx=5, pady=2)
             
-            ctk.CTkLabel(frame_control, text=self.valvulas[i], width=60, anchor="w").pack(side="left")
+            # Válvula
+            ctk.CTkLabel(frame_control, text=self.valvulas[i], width=col_widths['valvula'], anchor="w").grid(row=0, column=0, padx=(0,5))
             
-            # (LED)
-            estado = ctk.CTkLabel(frame_control, text="CERRADO", width=80, fg_color="red", corner_radius=5)
-            estado.pack(side="left", padx=5)
+            # Switch Activar
+            switch_frame = ctk.CTkFrame(frame_control, width=col_widths['activar'], fg_color="transparent")
+            switch_frame.grid(row=0, column=1, padx=5)
+            switch = ctk.CTkSwitch(switch_frame, text="", command=lambda idx=i: self.toggle_controles_puntuales(idx))
+            switch.pack(pady=3)
             
-            # t de apertura
-            tiempo_frame = ctk.CTkFrame(frame_control, fg_color="transparent")
-            tiempo_frame.pack(side="left", padx=5)
-            tiempo = ctk.CTkEntry(tiempo_frame, width=50, validate="key", validatecommand=(self.validar_cmd, "%P"))
-            tiempo.pack(side="left")
-            tiempo_unidad = ctk.CTkOptionMenu(tiempo_frame, values=["s", "min", "h"], width=50)
+            # Estado
+            estado = ctk.CTkLabel(frame_control, text="CERRADO", width=col_widths['estado'], anchor="center",
+                                fg_color="red", corner_radius=5)
+            estado.grid(row=0, column=2, padx=5)
+            
+            # Tiempo
+            tiempo_frame = ctk.CTkFrame(frame_control, width=col_widths['tiempo'], fg_color="transparent")
+            tiempo_frame.grid(row=0, column=3, padx=5)
+            
+            tiempo = ctk.CTkEntry(tiempo_frame, width=50, validate="key", validatecommand=(self.validar_cmd, "%P"), state="disabled")
+            tiempo.pack(side="left", padx=(0,5))
+            tiempo_unidad = ctk.CTkOptionMenu(tiempo_frame, values=["s", "min", "h"], width=50, state="disabled")
             tiempo_unidad.set("s")
-            tiempo_unidad.pack(side="left", padx=5)
-            tiempo.bind("<KeyRelease>", lambda e, ent=tiempo, unidad=tiempo_unidad: self.validar_tiempo(ent, unidad))
-            tiempo_unidad.configure(command=lambda v, ent=tiempo, unidad=tiempo_unidad: self.validar_tiempo(ent, unidad))
+            tiempo_unidad.pack(side="left")
             
-            # t transcurrido
-            tiempo_transcurrido = ctk.CTkLabel(frame_control, text="00:00", width=80)
-            tiempo_transcurrido.pack(side="left", padx=5)
+            # Tiempo Abierto
+            tiempo_transcurrido = ctk.CTkLabel(frame_control, text="00:00", width=col_widths['t_abierto'], anchor="center")
+            tiempo_transcurrido.grid(row=0, column=4, padx=5)
             
-            frame_acciones = ctk.CTkFrame(frame_control, fg_color="transparent")
-            frame_acciones.pack(side="left", padx=5)
+            # Acciones
+            btn_frame = ctk.CTkFrame(frame_control, width=col_widths['acciones'], fg_color="transparent")
+            btn_frame.grid(row=0, column=5, padx=5)
+            btn_invertir = ctk.CTkButton(btn_frame, text="Invertir", width=80,state="disabled")
+            btn_invertir.pack()
             
-            btn_invertir = ctk.CTkButton(frame_acciones, text="Invertir", width=60,
-                                       command=lambda idx=i: self.invertir_sentido(idx))
-            btn_invertir.pack(side="left", padx=2)
-            
-            btn_ejecutar = ctk.CTkButton(frame_acciones, text="Ejecutar", width=60,
-                                       command=lambda idx=i: self.ejecutar_valvula_puntual(idx))
-            btn_ejecutar.pack(side="left", padx=2)
-            
-            self.controles_puntuales.append((estado, tiempo, tiempo_unidad, tiempo_transcurrido, btn_invertir, btn_ejecutar))
+            self.controles_puntuales.append((switch, estado, tiempo, tiempo_unidad, tiempo_transcurrido, btn_invertir))
 
+        # Frame de botones para proceso puntual
+        frame_botones_puntual = ctk.CTkFrame(self.frame_puntual, fg_color="transparent")
+        frame_botones_puntual.pack(fill="x", padx=5, pady=(5,10))
+        
+        btn_reiniciar_puntual = ctk.CTkButton(frame_botones_puntual, text="REINICIAR", width=100,
+                                            command=self.reiniciar_puntual)
+        btn_reiniciar_puntual.pack(side="right", padx=5)
+        
+        btn_ejecutar_puntual = ctk.CTkButton(frame_botones_puntual, text="EJECUTAR", 
+                                    fg_color="#06918A", command=self.iniciar_proceso_puntual)
+        btn_ejecutar_puntual.pack(side="right", padx=5)
+        
         # Frame para Notificaciones
         self.frame_notificaciones = ctk.CTkFrame(self)
         self.frame_notificaciones.grid(row=1, column=0, columnspan=2, padx=10, pady=(0,10), sticky="nsew")
@@ -169,6 +207,116 @@ class FormPaneldeControl(ctk.CTkFrame):
 
         self.pack(padx=10, pady=10, fill="both", expand=True)
 
+    def generar_proceso_id_diario(self):
+        """Genera un ID de proceso único para el día actual"""
+        hoy = date.today().strftime("%Y%m%d")
+        return f"{hoy}_{uuid.uuid4().hex[:6]}"
+
+    def verificar_cambio_dia(self):
+        """Verifica si ha cambiado el día y actualiza el proceso_id si es necesario"""
+        hoy = date.today()
+        if hoy != self.ultima_fecha_reinicio:
+            self.proceso_id = self.generar_proceso_id_diario()
+            self.ultima_fecha_reinicio = hoy
+            self.agregar_notificacion(f"Nuevo ID de proceso generado para el día: {self.proceso_id}")
+
+    def reiniciar_ciclico(self):
+        """Reinicia todos los valores del proceso cíclico y genera nuevo proceso_id"""
+        self.proceso_id = self.generar_proceso_id_diario()
+        self.ultima_fecha_reinicio = date.today()
+        
+        for i, (switch, apertura, apertura_unidad, cierre, cierre_unidad, ciclos_deseados, ciclos_actual) in enumerate(self.controles_ciclicos):
+            switch.deselect()
+            apertura.delete(0, "end")
+            apertura_unidad.set("s")
+            cierre.delete(0, "end")
+            cierre_unidad.set("s")
+            ciclos_deseados.delete(0, "end")
+            ciclos_actual.configure(text="0")
+            self.toggle_controles_ciclicos(i)
+        
+        self.agregar_notificacion(f"Valores del proceso cíclico reiniciados") #Para checar ID = "Nuevo ID: {self.proceso_id}"
+
+    def reiniciar_puntual(self):
+        """Reinicia todos los valores del proceso puntual y genera nuevo proceso_id"""
+        self.proceso_id = self.generar_proceso_id_diario()
+        self.ultima_fecha_reinicio = date.today()
+        
+        for i, (switch, estado, tiempo, tiempo_unidad, tiempo_transcurrido, btn_invertir) in enumerate(self.controles_puntuales):
+            switch.deselect()
+            tiempo.delete(0, "end")
+            tiempo_unidad.set("s")
+            tiempo_transcurrido.configure(text="00:00")
+            estado.configure(text="CERRADO", fg_color="red")
+            self.estados_valvulas[i] = False
+            self.toggle_controles_puntuales(i)
+        
+        self.agregar_notificacion(f"Valores del proceso puntual reiniciados") #Para checar ID = "Nuevo ID: {self.proceso_id}"
+
+    def toggle_controles_ciclicos(self, idx):
+        """Habilita/deshabilita controles según estado del switch"""
+        switch_ciclico, apertura, apertura_unidad, cierre, cierre_unidad, ciclos_deseados, _ = self.controles_ciclicos[idx]
+        switch_puntual, _, _, _, _, _ = self.controles_puntuales[idx]
+        
+        if switch_ciclico.get():
+            # Verificar si la válvula está en proceso puntual
+            if self.estados_valvulas[idx]:
+                switch_ciclico.deselect()
+                messagebox.showwarning("Advertencia", 
+                                    f"La válvula {self.valvulas[idx]} está en proceso puntual. Cierre el proceso puntual primero.")
+                return
+            
+            # Deshabilitar switch puntual
+            switch_puntual.configure(state="disabled")
+            
+            # Habilitar controles cíclicos
+            apertura.configure(state="normal")
+            apertura_unidad.configure(state="normal")
+            cierre.configure(state="normal")
+            cierre_unidad.configure(state="normal")
+            ciclos_deseados.configure(state="normal")
+        else:
+            # Habilitar switch puntual si no está en ejecución
+            if not self.estados_valvulas[idx]:
+                switch_puntual.configure(state="normal")
+            
+            # Deshabilitar controles cíclicos
+            apertura.configure(state="disabled")
+            apertura_unidad.configure(state="disabled")
+            cierre.configure(state="disabled")
+            cierre_unidad.configure(state="disabled")
+            ciclos_deseados.configure(state="disabled")
+
+    def toggle_controles_puntuales(self, idx):
+        """Habilita/deshabilita controles según estado del switch"""
+        switch_puntual, estado, tiempo, tiempo_unidad, tiempo_transcurrido, btn_invertir = self.controles_puntuales[idx]
+        switch_ciclico, _, _, _, _, _, _ = self.controles_ciclicos[idx]
+        
+        if switch_puntual.get():
+            # Verificar si la válvula está en proceso cíclico
+            if switch_ciclico.get():
+                switch_puntual.deselect()
+                messagebox.showwarning("Advertencia", 
+                                    f"La válvula {self.valvulas[idx]} está en proceso cíclico. Detenga el proceso cíclico primero.")
+                return
+            
+            # Deshabilitar switch cíclico
+            switch_ciclico.configure(state="disabled")
+            
+            # Habilitar controles puntuales
+            tiempo.configure(state="normal")
+            tiempo_unidad.configure(state="normal")
+            btn_invertir.configure(state="normal")
+        else:
+            # Habilitar switch cíclico si no está en ejecución
+            if not switch_ciclico.get():
+                switch_ciclico.configure(state="normal")
+            
+            # Deshabilitar controles puntuales
+            tiempo.configure(state="disabled")
+            tiempo_unidad.configure(state="disabled")
+            btn_invertir.configure(state="disabled")
+
     def limpiar_notificaciones(self):
         """Limpia el área de notificaciones"""
         self.notificaciones_text.configure(state="normal")
@@ -181,7 +329,6 @@ class FormPaneldeControl(ctk.CTkFrame):
         hora_actual = datetime.now().strftime("%H:%M:%S")
         self.notificaciones_text.insert("end", f"[{hora_actual}] {mensaje}\n")
         self.notificaciones_text.configure(state="disabled")
-        # Auto-scroll al final
         self.notificaciones_text.see("end")
 
     def configurar_puerto_serial(self):
@@ -259,29 +406,61 @@ class FormPaneldeControl(ctk.CTkFrame):
             conn = sqlite3.connect("procesos.db")
             cursor = conn.cursor()
             
-            cursor.execute('''CREATE TABLE IF NOT EXISTS procesos (
-                           id INTEGER PRIMARY KEY AUTOINCREMENT,
-                           user_id INTEGER,
-                           fecha_inicio TEXT,
-                           fecha_fin TEXT,
-                           hora_instruccion TEXT,
-                           valvula_activada TEXT,
-                           tiempo_valvula INTEGER,
-                           ciclos INTEGER,
-                           estado_valvula TEXT)''')
+            # Verificar si la tabla existe
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='procesos'")
+            if not cursor.fetchone():
+                # Crear tabla nueva con todas las columnas
+                cursor.execute('''CREATE TABLE procesos (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            user_id INTEGER,
+                            proceso_id TEXT,
+                            fecha_inicio TEXT,
+                            fecha_fin TEXT,
+                            hora_instruccion TEXT,
+                            valvula_activada TEXT,
+                            tiempo_valvula INTEGER,
+                            ciclos INTEGER,
+                            estado_valvula TEXT,
+                            fase INTEGER DEFAULT 1,
+                            tipo_proceso TEXT)''')
+                print("Tabla 'procesos' creada con la nueva estructura")
+            else:
+                # Verificar columnas existentes
+                cursor.execute("PRAGMA table_info(procesos)")
+                columnas_existentes = [col[1] for col in cursor.fetchall()]
+                
+                # Añadir columnas faltantes
+                columnas_faltantes = {
+                    'proceso_id': 'TEXT',
+                    'fase': 'INTEGER DEFAULT 1',
+                    'tipo_proceso': 'TEXT'
+                }
+                
+                for columna, tipo in columnas_faltantes.items():
+                    if columna not in columnas_existentes:
+                        try:
+                            cursor.execute(f"ALTER TABLE procesos ADD COLUMN {columna} {tipo}")
+                            print(f"Columna {columna} añadida a la tabla existente")
+                        except sqlite3.OperationalError as e:
+                            print(f"Error al añadir columna {columna}: {e}")
+            
+            tipo_proceso = 'ciclico' if int(datos_proceso.get('ciclos', 0)) > 0 else 'puntual'
             
             cursor.execute('''INSERT INTO procesos 
-                           (user_id, fecha_inicio, fecha_fin, hora_instruccion, 
-                            valvula_activada, tiempo_valvula, ciclos, estado_valvula)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                        (user_id, proceso_id, fecha_inicio, fecha_fin, hora_instruccion, 
+                            valvula_activada, tiempo_valvula, ciclos, estado_valvula, fase, tipo_proceso)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                         (self.user_id,
-                         datos_proceso['fecha_inicio'],
-                         datos_proceso.get('fecha_fin', ''),
-                         datos_proceso['hora_instruccion'],
-                         datos_proceso['valvula'],
-                         datos_proceso['tiempo'],
-                         datos_proceso.get('ciclos', 0),
-                         datos_proceso['estado']))
+                        datos_proceso.get('proceso_id', ''),
+                        datos_proceso['fecha_inicio'],
+                        datos_proceso.get('fecha_fin', ''),
+                        datos_proceso['hora_instruccion'],
+                        datos_proceso['valvula'],
+                        datos_proceso['tiempo'],
+                        datos_proceso.get('ciclos', 0),
+                        datos_proceso['estado'],
+                        datos_proceso.get('fase', 1),
+                        tipo_proceso))
             conn.commit()
             return True
         except sqlite3.Error as e:
@@ -301,7 +480,7 @@ class FormPaneldeControl(ctk.CTkFrame):
             conn = sqlite3.connect("procesos.db")
             cursor = conn.cursor()
             
-            valvula = f"Válvula {self.valvulas[idx]}"
+            valvula = f"Válvula {self.valvulas[idx]}" 
             
             cursor.execute('''SELECT id FROM procesos 
                            WHERE valvula_activada = ? AND fecha_fin = '' 
@@ -313,13 +492,11 @@ class FormPaneldeControl(ctk.CTkFrame):
                 id_proceso = resultado[0]
                 
                 if ciclos_completados is not None:
-                    # Actualizar proceso cíclico
                     cursor.execute('''UPDATE procesos 
                                    SET fecha_fin = ?, ciclos = ?
                                    WHERE id = ?''',
                                 (fecha_fin, ciclos_completados, id_proceso))
                 else:
-                    # Actualizar proceso puntual
                     cursor.execute('''UPDATE procesos 
                                    SET fecha_fin = ?
                                    WHERE id = ?''',
@@ -339,18 +516,23 @@ class FormPaneldeControl(ctk.CTkFrame):
                 conn.close()
 
     def deshabilitar_controles_puntuales(self, idx):
-        _, tiempo, tiempo_unidad, _, btn_invertir, btn_ejecutar = self.controles_puntuales[idx]
+        switch, _, tiempo, tiempo_unidad, _, btn_invertir = self.controles_puntuales[idx]
+        switch.configure(state="disabled")
         tiempo.configure(state="disabled")
         tiempo_unidad.configure(state="disabled")
         btn_invertir.configure(state="disabled")
-        btn_ejecutar.configure(state="disabled")
 
     def habilitar_controles_puntuales(self, idx):
-        _, tiempo, tiempo_unidad, _, btn_invertir, btn_ejecutar = self.controles_puntuales[idx]
-        tiempo.configure(state="normal")
-        tiempo_unidad.configure(state="normal")
-        btn_invertir.configure(state="normal")
-        btn_ejecutar.configure(state="normal")
+        switch, _, tiempo, tiempo_unidad, _, btn_invertir = self.controles_puntuales[idx]
+        switch.configure(state="normal")
+        if switch.get():
+            tiempo.configure(state="normal")
+            tiempo_unidad.configure(state="normal")
+            btn_invertir.configure(state="normal")
+        else:
+            tiempo.configure(state="disabled")
+            tiempo_unidad.configure(state="disabled")
+            btn_invertir.configure(state="disabled")
 
     def deshabilitar_controles_ciclicos(self, idx):
         switch, apertura, apertura_unidad, cierre, cierre_unidad, ciclos_deseados, _ = self.controles_ciclicos[idx]
@@ -364,14 +546,27 @@ class FormPaneldeControl(ctk.CTkFrame):
     def habilitar_controles_ciclicos(self, idx):
         switch, apertura, apertura_unidad, cierre, cierre_unidad, ciclos_deseados, _ = self.controles_ciclicos[idx]
         switch.configure(state="normal")
-        apertura.configure(state="normal")
-        apertura_unidad.configure(state="normal")
-        cierre.configure(state="normal")
-        cierre_unidad.configure(state="normal")
-        ciclos_deseados.configure(state="normal")
+        if switch.get():
+            apertura.configure(state="normal")
+            apertura_unidad.configure(state="normal")
+            cierre.configure(state="normal")
+            cierre_unidad.configure(state="normal")
+            ciclos_deseados.configure(state="normal")
+        else:
+            apertura.configure(state="disabled")
+            apertura_unidad.configure(state="disabled")
+            cierre.configure(state="disabled")
+            cierre_unidad.configure(state="disabled")
+            ciclos_deseados.configure(state="disabled")
 
-    def iniciar_proceso_ciclico(self):
+    def iniciar_proceso_ciclico(self, proceso_id=None):
+        """Inicia proceso cíclico usando el proceso_id diario"""
         try:
+            self.verificar_cambio_dia()  # Verificar si ha cambiado el día
+            
+            # Usar el proceso_id diario a menos que se especifique uno diferente
+            proceso_id = self.proceso_id if proceso_id is None else proceso_id
+                
             cadenas = []
             fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
@@ -419,13 +614,15 @@ class FormPaneldeControl(ctk.CTkFrame):
                     
                     # Guardar en DB
                     datos = {
+                        'proceso_id': proceso_id,
                         'fecha_inicio': fecha_actual,
                         'fecha_fin': '',
                         'hora_instruccion': fecha_actual,
                         'valvula': f"Válvula {self.valvulas[i-1]}",
                         'tiempo': apertura_val,
                         'ciclos': ciclos_val,
-                        'estado': 'A'
+                        'estado': 'A',
+                        'fase': 1
                     }
                     self.guardar_proceso_db(datos)
                     
@@ -459,7 +656,7 @@ class FormPaneldeControl(ctk.CTkFrame):
                     messagebox.showerror("Error", "No hay conexión serial establecida con la ESP32")
                     return
 
-                self.agregar_notificacion("Proceso cíclico iniciado correctamente")
+                self.agregar_notificacion(f"Proceso cíclico iniciado") #Para ver ID = "con ID: {proceso_id}""
             else:
                 messagebox.showwarning("Advertencia", "No hay válvulas activadas para ejecutar")
                 
@@ -467,7 +664,7 @@ class FormPaneldeControl(ctk.CTkFrame):
             messagebox.showerror("Error", f"No se pudo iniciar el proceso: {str(e)}")
 
     def ejecutar_ciclos(self, idx, tiempo_apertura, tiempo_cierre, ciclos_deseados):
-        switch, _, _, _, _, ciclos_deseados_entry, ciclos_actual = self.controles_ciclicos[idx]
+        switch, _, _, _, _, _, ciclos_actual = self.controles_ciclicos[idx]
         
         ciclos = 0
         try:
@@ -506,15 +703,36 @@ class FormPaneldeControl(ctk.CTkFrame):
         except Exception as e:
             self.after(0, lambda: messagebox.showerror("Error", f"Error en válvula {self.valvulas[idx]}: {str(e)}"))
 
-    def ejecutar_valvula_puntual(self, idx):
+    def iniciar_proceso_puntual(self):
+        """Inicia proceso puntual para todas las válvulas activadas"""
+        try:
+            self.verificar_cambio_dia()  # Verificar si ha cambiado el día
+            proceso_id = self.proceso_id  # Siempre usar el proceso_id diario
+            
+            for i in range(9):
+                switch, _, _, _, _, _ = self.controles_puntuales[i]
+                if switch.get():
+                    self.ejecutar_valvula_puntual(i, proceso_id)
+            
+            self.agregar_notificacion(f"Proceso puntual simultáneo iniciado") #Para ver ID = "con ID: {proceso_id}"
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo iniciar el proceso puntual: {str(e)}")
+
+    def ejecutar_valvula_puntual(self, idx, proceso_id=None):
+        """Ejecuta válvula puntual usando el proceso_id diario"""
+        # Usar el proceso_id diario a menos que se especifique uno diferente
+        proceso_id = self.proceso_id if proceso_id is None else proceso_id
+        self.verificar_cambio_dia()  # Verificar si ha cambiado el día
+        
         # Verificar si la válvula está en proceso cíclico
-        switch, _, _, _, _, _, _ = self.controles_ciclicos[idx]
-        if switch.get():
+        switch_ciclico, _, _, _, _, _, _ = self.controles_ciclicos[idx]
+        if switch_ciclico.get():
             messagebox.showwarning("Advertencia", 
                                 f"La válvula {self.valvulas[idx]} está en proceso cíclico. Detenga el proceso cíclico primero.")
             return
         
-        estado, tiempo, tiempo_unidad, tiempo_transcurrido, _, _ = self.controles_puntuales[idx]
+        switch_puntual, estado, tiempo, tiempo_unidad, tiempo_transcurrido, _ = self.controles_puntuales[idx]
         
         if self.estados_valvulas[idx]:
             messagebox.showwarning("Advertencia", f"La válvula {self.valvulas[idx]} ya está abierta")
@@ -548,20 +766,20 @@ class FormPaneldeControl(ctk.CTkFrame):
                     print(f"Respuesta ESP32: {respuesta}")
             except Exception as e:
                 messagebox.showerror("Error", f"No se pudo enviar la cadena: {str(e)}")
-        else:
-            messagebox.showerror("Error", "No hay conexión serial establecida con la ESP32")
 
         
         # Guardar en DB
         fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         datos = {
+            'proceso_id': proceso_id,
             'fecha_inicio': fecha_actual,
             'fecha_fin': '',
             'hora_instruccion': fecha_actual,
             'valvula': f"Válvula {self.valvulas[idx]}",
             'tiempo': segundos,
             'ciclos': 0,
-            'estado': 'A'
+            'estado': 'A',
+            'fase': 1
         }
         self.guardar_proceso_db(datos)
         
@@ -574,7 +792,7 @@ class FormPaneldeControl(ctk.CTkFrame):
         self.actualizar_tiempo_transcurrido(idx, segundos)
 
     def actualizar_tiempo_transcurrido(self, idx, duracion_total):
-        estado, _, _, tiempo_transcurrido, _, _ = self.controles_puntuales[idx]
+        switch, estado, _, _, tiempo_transcurrido, _ = self.controles_puntuales[idx]
         
         if not self.estados_valvulas[idx]:
             return
@@ -602,4 +820,12 @@ class FormPaneldeControl(ctk.CTkFrame):
             self.actualizar_proceso_db(idx, fecha_fin)
 
     def invertir_sentido(self, idx):
-        self.agregar_notificacion(f"Sentido de la válvula {self.valvulas[idx]} invertido")
+        switch, estado, _, _, _, _ = self.controles_puntuales[idx]
+        if self.estados_valvulas[idx]:
+            # Solo se puede invertir si la válvula está abierta
+            self.estados_valvulas[idx] = False
+            estado.configure(text="CERRADO", fg_color="red")
+            self.agregar_notificacion(f"Sentido de la válvula {self.valvulas[idx]} invertido (cerrado)")
+        else:
+            # Si está cerrado, abrir con el tiempo configurado
+            self.ejecutar_valvula_puntual(idx)
