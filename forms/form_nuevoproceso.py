@@ -8,6 +8,7 @@ from tkinter import messagebox
 import datetime
 import serial
 import serial.tools.list_ports
+import uuid
 
 COLOR_CUERPO_PRINCIPAL = "#f4f8f7"
 
@@ -77,6 +78,7 @@ class FormNuevoProceso(ctk.CTkFrame):
             command=self.iniciar_proceso
         )
         self.ejecutar_btn.pack(side="right", padx=5)
+
 
 
     def configurar_puerto_serial(self):
@@ -227,9 +229,9 @@ class FormNuevoProceso(ctk.CTkFrame):
 
             # Config de dirección
             dir_var = ctk.StringVar(value="N")
-            btn_izq = ctk.CTkButton(fila, text="I", width=40, 
+            btn_izq = ctk.CTkButton(fila, text="⭯", width=40, 
                                    command=lambda v=dir_var: self.seleccionar_direccion(v, btn_izq, btn_der, "I"))
-            btn_der = ctk.CTkButton(fila, text="D", width=40, 
+            btn_der = ctk.CTkButton(fila, text="⭮", width=40, 
                                    command=lambda v=dir_var: self.seleccionar_direccion(v, btn_izq, btn_der, "D"))
             btn_izq.pack(side="left", padx=5)
             btn_der.pack(side="left", padx=5)
@@ -322,21 +324,26 @@ class FormNuevoProceso(ctk.CTkFrame):
             
             messagebox.showinfo("Éxito", "Proceso iniciado correctamente")
 
+
+
     def enviar_cadena_serial(self):
-        """Envía la cadena de comandos al dispositivo ESP32 por serial"""
         try:
+            proceso_id = str(uuid.uuid4())  # Generar ID único
             fecha_actual = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cadenas_fases = []
-        
-            for fase_idx, (nombre_fase, valvulas) in enumerate(self.fases_datos.items()):
+            
+            for fase_idx, (nombre_fase, valvulas) in enumerate(self.fases_datos.items(), start=1):
                 cadenas = []
                 for valvula_idx, valvula in enumerate(valvulas, start=1):
                     if valvula['switch'].get():
-                        # Construir datos para DB
+                        # Calcular tiempo y ciclos primero
                         tiempo = self.convertir_a_segundos(valvula['apertura'].get(), valvula['apertura_unidad'].get())
                         ciclos = valvula['ciclos'].get() if valvula['ciclos'].get() else 0
                         
+                        # Construir datos para DB (agregar proceso_id y fase)
                         datos = {
+                            'proceso_id': proceso_id,
+                            'fase': fase_idx,
                             'fecha_inicio': fecha_actual,
                             'fecha_fin': '',
                             'hora_instruccion': fecha_actual,
@@ -350,7 +357,7 @@ class FormNuevoProceso(ctk.CTkFrame):
                         # Construir cadena para ESP32
                         motor = f"M{valvula_idx}"
                         direccion = valvula['dir_var'].get()
-                        ciclos_val = valvula['ciclos'].get().zfill(4) if valvula['ciclos'].get() else "0000"
+                        ciclos_val = str(ciclos).zfill(4) if ciclos else "0000"
                         apertura_val = tiempo
                         cierre_val = self.convertir_a_segundos(valvula['cierre'].get(), valvula['cierre_unidad'].get())
 
@@ -372,6 +379,7 @@ class FormNuevoProceso(ctk.CTkFrame):
                 if cadenas:
                     fase_cadena = "".join(cadenas)
                     cadenas_fases.append(fase_cadena)
+
 
             # Unir todas las fases (separador = &)
             cadena_final = "&".join(cadenas_fases) if cadenas_fases else ""
@@ -524,42 +532,81 @@ class FormNuevoProceso(ctk.CTkFrame):
             valvula['ciclos'].delete(0, "end")
             valvula['progreso'].configure(text="0/0")
             valvula['ciclos_completados'] = 0
+            
 
     def guardar_proceso_db(self, datos_proceso):
         """Guarda los datos del proceso en la base de datos"""
+        conn = None
         try:
             conn = sqlite3.connect("procesos.db")
             cursor = conn.cursor()
             
-            cursor.execute('''CREATE TABLE IF NOT EXISTS procesos (
-                           id INTEGER PRIMARY KEY AUTOINCREMENT,
-                           user_id INTEGER,
-                           fecha_inicio TEXT,
-                           fecha_fin TEXT,
-                           hora_instruccion TEXT,
-                           valvula_activada TEXT,
-                           tiempo_valvula INTEGER,
-                           ciclos INTEGER,
-                           estado_valvula TEXT)''')
+            # Verificar si la tabla existe
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='procesos'")
+            if not cursor.fetchone():
+                # Crear tabla nueva con todas las columnas
+                cursor.execute('''CREATE TABLE procesos (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            user_id INTEGER,
+                            proceso_id TEXT,
+                            fecha_inicio TEXT,
+                            fecha_fin TEXT,
+                            hora_instruccion TEXT,
+                            valvula_activada TEXT,
+                            tiempo_valvula INTEGER,
+                            ciclos INTEGER,
+                            estado_valvula TEXT,
+                            fase INTEGER DEFAULT 1,
+                            tipo_proceso TEXT)''')
+                print("Tabla 'procesos' creada con la nueva estructura")
+            else:
+                # Verificar columnas existentes
+                cursor.execute("PRAGMA table_info(procesos)")
+                columnas_existentes = [col[1] for col in cursor.fetchall()]
+                
+                # Añadir columnas faltantes
+                columnas_faltantes = {
+                    'proceso_id': 'TEXT',
+                    'fase': 'INTEGER DEFAULT 1',
+                    'tipo_proceso': 'TEXT'
+                }
+                
+                for columna, tipo in columnas_faltantes.items():
+                    if columna not in columnas_existentes:
+                        try:
+                            cursor.execute(f"ALTER TABLE procesos ADD COLUMN {columna} {tipo}")
+                            print(f"Columna {columna} añadida a la tabla existente")
+                        except sqlite3.OperationalError as e:
+                            print(f"Error al añadir columna {columna}: {e}")
+            
+            tipo_proceso = 'ciclico' if int(datos_proceso.get('ciclos', 0)) > 0 else 'puntual'
             
             cursor.execute('''INSERT INTO procesos 
-                           (user_id, fecha_inicio, fecha_fin, hora_instruccion, 
-                            valvula_activada, tiempo_valvula, ciclos, estado_valvula)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                        (user_id, proceso_id, fecha_inicio, fecha_fin, hora_instruccion, 
+                            valvula_activada, tiempo_valvula, ciclos, estado_valvula, fase, tipo_proceso)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                         (self.user_id,
-                         datos_proceso['fecha_inicio'],
-                         datos_proceso['fecha_fin'],
-                         datos_proceso['hora_instruccion'],
-                         datos_proceso['valvula'],
-                         datos_proceso['tiempo'],
-                         datos_proceso['ciclos'],
-                         datos_proceso['estado']))
+                        datos_proceso.get('proceso_id', ''),
+                        datos_proceso['fecha_inicio'],
+                        datos_proceso.get('fecha_fin', ''),
+                        datos_proceso['hora_instruccion'],
+                        datos_proceso['valvula'],
+                        datos_proceso['tiempo'],
+                        datos_proceso.get('ciclos', 0),
+                        datos_proceso['estado'],
+                        datos_proceso.get('fase', 1),
+                        tipo_proceso))
             conn.commit()
-            conn.close()
             return True
-        except Exception as e:
-            print(f"Error al guardar en DB: {e}")
+        except sqlite3.Error as e:
+            print(f"Error de SQLite al guardar en DB: {e}")
             return False
+        except Exception as e:
+            print(f"Error inesperado al guardar en DB: {e}")
+            return False
+        finally:
+            if conn:
+                conn.close()  
 
     def __del__(self):
         """Cerrar conexión serial al destruir el objeto"""
