@@ -1,3 +1,7 @@
+#NOTAS:
+#Checar error de run: pip uninstall --yes pypdf && pip install --upgrade fpdf2
+#Ajuste de diseño todo en una misma tabla
+
 import customtkinter as ctk
 from tkinter import messagebox, filedialog
 import sqlite3
@@ -6,10 +10,6 @@ import traceback
 from tkinter import ttk
 from fpdf import FPDF
 import os
-#NOTAS:
-#Checar error de run: pip uninstall --yes pypdf && pip install --upgrade fpdf2
-#Modificar para que detecte flashes ciclicos de menos de 60 segundos y los muestre en el reporte
-#Ajuste de diseño (agregar columna ciclos)
 
 class FormHistorial(ctk.CTkFrame):
     def __init__(self, panel_principal, user_id):  
@@ -165,7 +165,7 @@ class FormHistorial(ctk.CTkFrame):
             print(f"Error detallado: {traceback.format_exc()}")
 
     def generar_reporte_pdf(self):
-        """Genera reporte PDF con todos los datos de un proceso completo"""
+        """Genera reporte PDF con formato exacto al requerido"""
         seleccion = self.treeview.focus()
         if not seleccion:
             messagebox.showwarning("Advertencia", "Por favor seleccione un registro del historial")
@@ -173,25 +173,20 @@ class FormHistorial(ctk.CTkFrame):
             
         item = self.treeview.item(seleccion)
         valores = item['values']
-        proceso_id = valores[7]  # El proceso_id está en la columna 7
+        proceso_id = valores[7]
         
-        # Verificar campos obligatorios
         if not self.nombre_crecimiento_entry.get() or not self.responsables_entry.get() or not self.sustrato_entry.get():
             messagebox.showwarning("Advertencia", "Por favor complete todos los campos del reporte")
             return
             
         try:
-            # Obtener todos los registros del proceso seleccionado
             conn = sqlite3.connect("procesos.db")
             cursor = conn.cursor()
             
             cursor.execute("""
                 SELECT 
                     fecha_inicio,
-                    CASE 
-                        WHEN fecha_fin = '' THEN 'En progreso'
-                        ELSE fecha_fin
-                    END as fecha_fin,
+                    CASE WHEN fecha_fin = '' THEN 'En progreso' ELSE fecha_fin END as fecha_fin,
                     valvula_activada,
                     tiempo_valvula,
                     ciclos,
@@ -210,9 +205,12 @@ class FormHistorial(ctk.CTkFrame):
                 messagebox.showwarning("Advertencia", "No se encontraron detalles para este registro")
                 return
             
-            # Obtener fechas de inicio y fin del proceso completo
-            fecha_inicio_proceso = detalles[0][0]
-            fecha_fin_proceso = detalles[-1][1] if detalles[-1][1] != 'En progreso' else 'En progreso'
+            # Orden personalizado de válvulas (modifica según necesites)
+            orden_valvulas = ['N', 'G', 'As', 'Al', 'Mg', 'In', 'Be']  # Ejemplo, ajusta a tus necesidades
+            
+            # Procesamiento de datos
+            fecha_inicio_proceso = min(det[0] for det in detalles)
+            fecha_fin_proceso = max(det[1] for det in detalles if det[1] != 'En progreso') if any(det[1] != 'En progreso' for det in detalles) else 'En progreso'
             
             # Calcular duración total del proceso
             duracion_total = "En progreso"
@@ -224,62 +222,75 @@ class FormHistorial(ctk.CTkFrame):
                 except ValueError:
                     duracion_total = "No disponible"
             
-            # Agrupar por fases y calcular tiempos
+            # Agrupar por fases y ordenar válvulas
             fases = {}
-            
             for detalle in detalles:
-                fase = str(detalle[5])  # Convertir fase a string
-                tiempo_valvula = detalle[3] or 0  # Tiempo de la válvula
-                
+                fase = str(detalle[5])
                 if fase not in fases:
-                    fases[fase] = {
-                        'registros': [],
-                        'inicio': detalle[0],
-                        'fin': detalle[1]
-                    }
-                else:
-                    # Actualizar hora fin de la fase (será la de la última válvula)
-                    fases[fase]['fin'] = detalle[1]
+                    fases[fase] = []
+                fases[fase].append(detalle)
+            
+            # Ordenar válvulas según el orden personalizado
+            for fase in fases:
+                fases[fase].sort(key=lambda x: orden_valvulas.index(x[2]) if x[2] in orden_valvulas else float('inf'))
+            
+            # Calcular duración por fase
+            for fase, registros in fases.items():
+                inicio_fase = min(reg[0] for reg in registros)
+                fin_fase = max(reg[1] for reg in registros if reg[1] != 'En progreso') if any(reg[1] != 'En progreso' for reg in registros) else 'En progreso'
                 
-                fases[fase]['registros'].append(detalle)
-            
-            # Calcular duración de cada fase
-            for fase, datos in fases.items():
-                if datos['fin'] != 'En progreso':
+                if fin_fase != 'En progreso':
                     try:
-                        inicio_fase = datetime.datetime.strptime(datos['inicio'], "%Y-%m-%d %H:%M:%S")
-                        fin_fase = datetime.datetime.strptime(datos['fin'], "%Y-%m-%d %H:%M:%S")
-                        datos['duracion'] = str(fin_fase - inicio_fase)
+                        inicio = datetime.datetime.strptime(inicio_fase, "%Y-%m-%d %H:%M:%S")
+                        fin = datetime.datetime.strptime(fin_fase, "%Y-%m-%d %H:%M:%S")
+                        fases[fase] = {
+                            'registros': registros,
+                            'duracion': str(fin - inicio),
+                            'inicio': inicio_fase,
+                            'fin': fin_fase
+                        }
                     except ValueError:
-                        datos['duracion'] = "No disponible"
+                        fases[fase] = {
+                            'registros': registros,
+                            'duracion': "No disponible",
+                            'inicio': inicio_fase,
+                            'fin': fin_fase
+                        }
                 else:
-                    datos['duracion'] = "En progreso"
+                    fases[fase] = {
+                        'registros': registros,
+                        'duracion': "En progreso",
+                        'inicio': inicio_fase,
+                        'fin': fin_fase
+                    }
             
-            # Separar flashes (eventos < 60 segundos)
-            fases_ordenadas = []
+            # Separar flashes (solo tiempo total <60s)
+            fases_normales = {}
             flashes = []
             
             for fase, datos in fases.items():
-                # Verificar si es flash (todos los registros < 60s)
-                es_flash = all((reg[3] or 0) < 60 for reg in datos['registros'])
+                for reg in datos['registros']:
+                    if (reg[3] or 0) < 60:  # Solo tiempo total <60s
+                        flashes.append(reg)
                 
-                if es_flash:
-                    flashes.extend(datos['registros'])
-                else:
-                    fases_ordenadas.append((fase, datos))
-            
-            # Ordenar fases por tiempo (última primero)
-            fases_ordenadas.sort(key=lambda x: x[1]['inicio'], reverse=True)
+                # Quitar los flashes de la fase normal
+                registros_normales = [reg for reg in datos['registros'] if (reg[3] or 0) >= 60]
+                
+                if registros_normales:
+                    fases_normales[fase] = {
+                        'registros': registros_normales,
+                        'duracion': datos['duracion'],
+                        'inicio': datos['inicio'],
+                        'fin': datos['fin']
+                    }
             
             # Crear PDF
             pdf = FPDF()
             pdf.add_page()
             pdf.set_auto_page_break(auto=True, margin=15)
-            
-            # Configurar fuente
             pdf.set_font("Arial", size=12)
             
-            # Agregar logo (si existe)
+            # Logo
             logo_path = r"D:\Python_Proyectos\INTER_C3\imagenes\logocinves_predeterm.png"
             if os.path.exists(logo_path):
                 try:
@@ -294,70 +305,89 @@ class FormHistorial(ctk.CTkFrame):
             
             # Información básica
             pdf.set_font("Arial", size=12)
-            pdf.cell(0, 10, f"Nombre del crecimiento: {self.nombre_crecimiento_entry.get()}", 0, 1)
+            pdf.cell(0, 10, f"Nombre: {self.nombre_crecimiento_entry.get()}", 0, 1)
             pdf.cell(0, 10, f"Responsables: {self.responsables_entry.get()}", 0, 1)
-            pdf.cell(0, 10, f"Fecha y hora de INICIO: {fecha_inicio_proceso}", 0, 1)
-            pdf.cell(0, 10, f"Fecha y hora de FIN: {fecha_fin_proceso}", 0, 1)
-            pdf.cell(0, 10, f"Duración total del crecimiento: {duracion_total}", 0, 1)
+            pdf.cell(0, 10, f"Inicio: {fecha_inicio_proceso}", 0, 1)
+            pdf.cell(0, 10, f"Fin: {fecha_fin_proceso}", 0, 1)
+            pdf.cell(0, 10, f"Duración: {duracion_total}", 0, 1)
             pdf.ln(10)
             
-            # Tabla de fases
-            if fases_ordenadas:
+            # Fases normales
+            if fases_normales:
                 pdf.set_font("Arial", 'B', 14)
-                pdf.cell(0, 10, "DETALLES DE FASES:", 0, 1)
+                pdf.cell(0, 10, "FASES:", 0, 1)
                 pdf.ln(5)
                 
-                for fase, datos in fases_ordenadas:
-                    # Encabezado de fase
-                    pdf.set_fill_color(200, 220, 255)
+                # Crear tabla para fases normales
+                pdf.set_fill_color(200, 220, 255)
+                pdf.set_font("Arial", 'B', 12)
+                
+                # Encabezados de tabla
+                col_widths = [40, 40, 40, 40, 40]
+                headers = ["Elemento", "Tiempo total", "Ciclos", "Hora inicio", "Hora fin"]
+                
+                for i, header in enumerate(headers):
+                    pdf.cell(col_widths[i], 10, header, 1, 0, 'C', 1)
+                pdf.ln()
+                
+                # Contenido
+                pdf.set_font("Arial", size=10)
+                for fase, datos in fases_normales.items():
+                    # Mostrar duración de la fase
                     pdf.set_font("Arial", 'B', 12)
-                    pdf.cell(0, 10, f"Fase: {fase} (Duración total: {datos['duracion']})", 1, 1, 'C', 1)
-                    
-                    # Detalles de cada válvula en la fase
+                    pdf.cell(0, 10, f"Fase {fase} (Duración: {datos['duracion']})", 0, 1)
                     pdf.set_font("Arial", size=10)
-                    for reg in datos['registros']:
-                        tiempo_valvula = reg[3] or 0
-                        elementos = [
-                            f"{reg[2]}", # Válvula activada
-                            f"Tiempo: {tiempo_valvula}s",
-                            f"Ciclos: {reg[4]}",
-                            f"Inicio: {reg[0]}",
-                            f"Fin: {reg[1]}"
-                        ]
-                        pdf.cell(0, 8, " | ".join(elementos), 1, 1)
                     
-                    pdf.ln(3)
+                    for reg in datos['registros']:
+                        tiempo_total = reg[3] or 0
+                        ciclos = reg[4] or 0
+                        inicio = reg[0][11:19] if len(reg[0]) > 10 else reg[0]
+                        fin = reg[1][11:19] if reg[1] != 'En progreso' and len(reg[1]) > 10 else reg[1]
+                        
+                        pdf.cell(col_widths[0], 8, reg[2], 1, 0)  # Elemento
+                        pdf.cell(col_widths[1], 8, f"{tiempo_total}s", 1, 0, 'C')  # Tiempo total
+                        pdf.cell(col_widths[2], 8, str(ciclos) if ciclos > 0 else "Puntual", 1, 0, 'C')  # Ciclos
+                        pdf.cell(col_widths[3], 8, inicio, 1, 0, 'C')  # Hora inicio
+                        pdf.cell(col_widths[4], 8, fin, 1, 1, 'C')  # Hora fin
             
-            # Sección de flashes
+            # Flashes
             if flashes:
+                pdf.ln(5)
                 pdf.set_font("Arial", 'B', 14)
-                pdf.cell(0, 10, "FLASHES (Eventos menores a 60 segundos):", 0, 1)
+                pdf.cell(0, 10, "FLASHES:", 0, 1)
                 pdf.ln(5)
                 
+                # Encabezados de tabla
                 pdf.set_fill_color(220, 220, 220)
                 pdf.set_font("Arial", 'B', 12)
-                pdf.cell(0, 10, "Eventos puntuales", 1, 1, 'C', 1)
                 
+                for i, header in enumerate(headers):
+                    pdf.cell(col_widths[i], 10, header, 1, 0, 'C', 1)
+                pdf.ln()
+                
+                # Contenido
                 pdf.set_font("Arial", size=10)
                 for flash in flashes:
-                    tiempo_flash = flash[3] or 0
-                    elementos = [
-                        f"{flash[2]}", # Válvula activada
-                        f"Tiempo: {tiempo_flash}s",
-                        f"Inicio: {flash[0]}"
-                    ]
-                    pdf.cell(0, 8, " | ".join(elementos), 1, 1)
-                
-                pdf.ln(3)
+                    tiempo_total = flash[3] or 0
+                    ciclos = flash[4] or 0
+                    inicio = flash[0][11:19] if len(flash[0]) > 10 else flash[0]
+                    fin = flash[1][11:19] if flash[1] != 'En progreso' and len(flash[1]) > 10 else flash[1]
+                    
+                    pdf.cell(col_widths[0], 8, flash[2], 1, 0)  # Elemento
+                    pdf.cell(col_widths[1], 8, f"{tiempo_total}s", 1, 0, 'C')  # Tiempo total
+                    pdf.cell(col_widths[2], 8, str(ciclos) if ciclos > 0 else "Puntual", 1, 0, 'C')  # Ciclos
+                    pdf.cell(col_widths[3], 8, inicio, 1, 0, 'C')  # Hora inicio
+                    pdf.cell(col_widths[4], 8, fin, 1, 1, 'C')  # Hora fin
             
-            # Sección de sustrato
+            # Sustrato
+            pdf.ln(10)
             pdf.set_font("Arial", 'B', 14)
             pdf.cell(0, 10, "SUSTRATO:", 0, 1)
             pdf.ln(5)
             
             pdf.set_fill_color(200, 220, 255)
             pdf.set_font("Arial", 'B', 12)
-            pdf.cell(0, 10, f"Sustrato utilizado: {self.sustrato_entry.get()}", 1, 1, 'C', 1)
+            pdf.cell(0, 10, f"{self.sustrato_entry.get()}", 1, 1, 'C', 1)
             
             # Guardar PDF
             nombre_archivo = f"reporte_{valores[0]}_{valores[1].replace(':', '')}.pdf"
