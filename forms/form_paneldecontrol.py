@@ -9,7 +9,7 @@ import serial
 import serial.tools.list_ports
 import uuid
 
-class FormPaneldeControl(ctk.CTkFrame):
+class FormPaneldeControl(ctk.CTkScrollableFrame):
     def __init__(self, panel_principal, user_id):  
         super().__init__(panel_principal)
         self.user_id = user_id
@@ -151,7 +151,7 @@ class FormPaneldeControl(ctk.CTkFrame):
             
             # Estado
             estado = ctk.CTkLabel(frame_control, text="CERRADO", width=col_widths['estado'], anchor="center",
-                                fg_color="red", corner_radius=5)
+                                fg_color="#222222", text_color="white", corner_radius=5)
             estado.grid(row=0, column=2, padx=5)
             
             # Tiempo
@@ -207,6 +207,16 @@ class FormPaneldeControl(ctk.CTkFrame):
 
         self.pack(padx=10, pady=10, fill="both", expand=True)
 
+        # Botón de paro de emergencia
+        btn_paro = ctk.CTkButton(self.frame_notificaciones, 
+                                    text="STOP EMERGENCIA", 
+                                    fg_color="red", 
+                                    hover_color="darkred",
+                                    command=self.paro_emergencia)
+        btn_paro.pack(side="right", padx=5, pady=(0,5))
+        self.pack(padx=10, pady=10, fill="both", expand=True)
+
+
     def generar_proceso_id_diario(self):
         """Genera un ID de proceso único para el día actual"""
         hoy = date.today().strftime("%Y%m%d")
@@ -219,6 +229,49 @@ class FormPaneldeControl(ctk.CTkFrame):
             self.proceso_id = self.generar_proceso_id_diario()
             self.ultima_fecha_reinicio = hoy
             self.agregar_notificacion(f"Nuevo ID de proceso generado para el día: {self.proceso_id}")
+
+    def paro_emergencia(self):
+        """Detiene todos los procesos y envía señal de emergencia a la ESP32"""
+        # Detener todos los procesos cíclicos
+        for i in range(9):
+            if self.hilos_ejecucion[i] and self.hilos_ejecucion[i].is_alive():
+                self.hilos_ejecucion[i].do_run = False
+                self.hilos_ejecucion[i] = None
+                
+                # Resetear contadores
+                _, _, _, _, _, _, ciclos_actual = self.controles_ciclicos[i]
+                ciclos_actual.configure(text="0")
+                
+                # Habilitar controles
+                self.habilitar_controles_puntuales(i)
+        
+        # Detener procesos puntuales
+        for i in range(9):
+            if self.estados_valvulas[i]:
+                self.estados_valvulas[i] = False
+                _, estado, _, _, tiempo_transcurrido, _ = self.controles_puntuales[i]
+                estado.configure(text="CERRADO", fg_color="red")
+                tiempo_transcurrido.configure(text="00:00")
+                
+                # Habilitar controles cíclicos
+                self.habilitar_controles_ciclicos(i)
+        
+        # Envia señal de emergencia a ESP32
+        if self.serial_connection and self.serial_connection.is_open:
+            try:
+                self.serial_connection.write(b"PPPPPPPPPPPPPPPP")  # 16 'P' como señal de emergencia
+                self.agregar_notificacion("Señal de EMERGENCIA enviada a ESP32")
+            except Exception as e:
+                self.agregar_notificacion(f"Error al enviar señal de emergencia: {str(e)}")
+        else:
+            self.agregar_notificacion("No hay conexión serial para enviar señal de emergencia")
+        
+        # Registrar en notificaciones
+        self.agregar_notificacion("¡PARO DE EMERGENCIA ACTIVADO! Todos los procesos detenidos")
+        
+        # Opcional: Mostrar mensaje emergente
+        messagebox.showwarning("PARO DE EMERGENCIA", 
+                            "Todos los procesos han sido detenidos por seguridad")
 
     def reiniciar_ciclico(self):
         """Reinicia todos los valores del proceso cíclico y genera nuevo proceso_id"""
@@ -669,18 +722,18 @@ class FormPaneldeControl(ctk.CTkFrame):
         ciclos = 0
         try:
             while getattr(threading.current_thread(), "do_run", True) and (ciclos_deseados == 0 or ciclos < ciclos_deseados):
-                # Apertura
+                # Apertura (con chequeo periódico)
                 inicio = time.time()
                 while time.time() - inicio < tiempo_apertura and getattr(threading.current_thread(), "do_run", True):
-                    time.sleep(0.1)
+                    time.sleep(0.1)  # Checa cada 100ms
                 
                 if not getattr(threading.current_thread(), "do_run", True):
                     break
                     
-                # Cierre
+                # Cierre (con chequeo periódico)
                 inicio = time.time()
                 while time.time() - inicio < tiempo_cierre and getattr(threading.current_thread(), "do_run", True):
-                    time.sleep(0.1)
+                    time.sleep(0.1)  # Checa cada 100ms
                 
                 if not getattr(threading.current_thread(), "do_run", True):
                     break
@@ -688,6 +741,7 @@ class FormPaneldeControl(ctk.CTkFrame):
                 ciclos += 1
                 self.after(0, lambda: ciclos_actual.configure(text=str(ciclos)))
             
+                
             # Habilitar controles puntuales cuando termina
             self.after(0, lambda: self.habilitar_controles_puntuales(idx))
             
