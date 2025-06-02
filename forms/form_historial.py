@@ -1,7 +1,3 @@
-#NOTAS:
-#Checar error de run: pip uninstall --yes pypdf && pip install --upgrade fpdf2
-#Colores y marca de agua en el PDF (Ver si se pueden tiempos globales)
-
 import customtkinter as ctk
 from tkinter import messagebox, filedialog
 import sqlite3
@@ -165,7 +161,7 @@ class FormHistorial(ctk.CTkFrame):
             print(f"Error detallado: {traceback.format_exc()}")
 
     def generar_reporte_pdf(self):
-        """Genera reporte PDF con formato exacto al requerido"""
+        """Genera reporte PDF con formato profesional incluyendo marca de agua"""
         seleccion = self.treeview.focus()
         if not seleccion:
             messagebox.showwarning("Advertencia", "Por favor seleccione un registro del historial")
@@ -280,10 +276,28 @@ class FormHistorial(ctk.CTkFrame):
             # Crear PDF
             pdf = FPDF()
             pdf.add_page()
+            
+            # 1. Agregar marca de agua (fondo)
+            watermark_path = r"D:\Python_Proyectos\INTER_C3\imagenes\marcadeagua.png"
+            if os.path.exists(watermark_path):
+                try:
+                    # Configurar transparencia
+                    if hasattr(pdf, 'set_alpha'):
+                        pdf.set_alpha(0.05)  # 95% transparencia
+                    
+                    # Centrar la marca de agua
+                    pdf.image(watermark_path, x=30, y=50, w=150)
+                    
+                    if hasattr(pdf, 'set_alpha'):
+                        pdf.set_alpha(1)  # Restablecer opacidad normal
+                except Exception as e:
+                    print(f"Error al agregar marca de agua: {str(e)}")
+            
+            # Configuración principal
             pdf.set_auto_page_break(auto=True, margin=15)
             pdf.set_font("Arial", size=12)
             
-            # Logo
+            # Logo principal
             logo_path = r"D:\Python_Proyectos\INTER_C3\imagenes\logocinves_predeterm.png"
             if os.path.exists(logo_path):
                 try:
@@ -305,13 +319,16 @@ class FormHistorial(ctk.CTkFrame):
             pdf.cell(0, 10, f"Duración: {duracion_total}", 0, 1)
             pdf.ln(10)
             
-            # Configuración de columnas (más angostas)
+            # Configuración de columnas (angostas y centradas)
+            headers = ["Elemento", "Tiempo", "Ciclos", "Hora inicio", "Hora fin"]
             col_widths = [35, 30, 25, 35, 30]  # Total: 155mm
             total_width = sum(col_widths)
-            left_margin = (210 - total_width) / 2  # Centrar en página A4 (210mm)
+            left_margin = (210 - total_width) / 2  # Centrar en página A4
+
             
             # Crear tabla unificada centrada
             pdf.set_left_margin(left_margin)
+            pdf.set_font("Arial", size=10)
             
             # 1. FASE
             if fases_normales:
@@ -323,7 +340,7 @@ class FormHistorial(ctk.CTkFrame):
                     
                     # Encabezados de columnas (gris)
                     pdf.set_fill_color(220, 220, 220)
-                    headers = ["Elemento", "Tiempo", "Ciclos", "Hora inicio", "Hora fin"]
+                    
                     for i, header in enumerate(headers):
                         pdf.cell(col_widths[i], 10, header, 1, 0, 'C', 1)
                     pdf.ln()
@@ -336,25 +353,25 @@ class FormHistorial(ctk.CTkFrame):
                         inicio = reg[0][11:19] if len(reg[0]) > 10 else reg[0]
                         fin = reg[1][11:19] if reg[1] != 'En progreso' and len(reg[1]) > 10 else reg[1]
                         
-                        pdf.cell(col_widths[0], 8, reg[2], 1, 0)  # Elemento
-                        pdf.cell(col_widths[1], 8, f"{tiempo_total}s", 1, 0, 'C')  # Tiempo
-                        pdf.cell(col_widths[2], 8, str(ciclos) if ciclos > 0 else "Puntual", 1, 0, 'C')  # Ciclos
-                        pdf.cell(col_widths[3], 8, inicio, 1, 0, 'C')  # Hora inicio
-                        pdf.cell(col_widths[4], 8, fin, 1, 1, 'C')  # Hora fin
+                        pdf.cell(col_widths[0], 8, reg[2], 1, 0)
+                        pdf.cell(col_widths[1], 8, f"{tiempo_total}s", 1, 0, 'C')
+                        pdf.cell(col_widths[2], 8, str(ciclos) if ciclos > 0 else "Puntual", 1, 0, 'C')
+                        pdf.cell(col_widths[3], 8, inicio, 1, 0, 'C')
+                        pdf.cell(col_widths[4], 8, fin, 1, 1, 'C')
             
-            # 2. FLASHES (verde oscuro)
+            # 2. FLASHES (verde oscuro y filas delgadas)
             if flashes:
                 pdf.set_font("Arial", 'B', 12)
                 pdf.set_fill_color(0, 100, 0)  # Verde oscuro
                 pdf.cell(total_width, 10, "FLASHES", 1, 1, 'C', 1)
                 
-                # Reusar encabezados de columnas
+                # Encabezados de columnas (gris)
                 pdf.set_fill_color(220, 220, 220)
                 for i, header in enumerate(headers):
                     pdf.cell(col_widths[i], 10, header, 1, 0, 'C', 1)
                 pdf.ln()
                 
-                # Contenido de flashes (filas más delgadas)
+                # Contenido de flashes (filas delgadas)
                 pdf.set_font("Arial", size=8)
                 for flash in flashes:
                     tiempo_total = flash[3] or 0
@@ -373,7 +390,7 @@ class FormHistorial(ctk.CTkFrame):
             pdf.set_fill_color(255, 255, 0)  # Amarillo
             pdf.cell(total_width, 10, "SUSTRATO", 1, 1, 'C', 1)
             pdf.set_font("Arial", size=10)
-            pdf.set_fill_color(255, 255, 255)  # Fondo blanco
+            pdf.set_fill_color(255, 255, 255)
             pdf.cell(total_width, 10, self.sustrato_entry.get(), 1, 1, 'C')
             
             # Restablecer margen
