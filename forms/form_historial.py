@@ -1,6 +1,6 @@
 #NOTAS:
 #Checar error de run: pip uninstall --yes pypdf && pip install --upgrade fpdf2
-#Ajuste de diseño todo en una misma tabla
+#Colores y marca de agua en el PDF (Ver si se pueden tiempos globales)
 
 import customtkinter as ctk
 from tkinter import messagebox, filedialog
@@ -205,9 +205,6 @@ class FormHistorial(ctk.CTkFrame):
                 messagebox.showwarning("Advertencia", "No se encontraron detalles para este registro")
                 return
             
-            # Orden personalizado de válvulas (modifica según necesites)
-            orden_valvulas = ['N', 'G', 'As', 'Al', 'Mg', 'In', 'Be']  # Ejemplo, ajusta a tus necesidades
-            
             # Procesamiento de datos
             fecha_inicio_proceso = min(det[0] for det in detalles)
             fecha_fin_proceso = max(det[1] for det in detalles if det[1] != 'En progreso') if any(det[1] != 'En progreso' for det in detalles) else 'En progreso'
@@ -222,17 +219,13 @@ class FormHistorial(ctk.CTkFrame):
                 except ValueError:
                     duracion_total = "No disponible"
             
-            # Agrupar por fases y ordenar válvulas
+            # Agrupar por fases
             fases = {}
             for detalle in detalles:
                 fase = str(detalle[5])
                 if fase not in fases:
                     fases[fase] = []
                 fases[fase].append(detalle)
-            
-            # Ordenar válvulas según el orden personalizado
-            for fase in fases:
-                fases[fase].sort(key=lambda x: orden_valvulas.index(x[2]) if x[2] in orden_valvulas else float('inf'))
             
             # Calcular duración por fase
             for fase, registros in fases.items():
@@ -264,7 +257,7 @@ class FormHistorial(ctk.CTkFrame):
                         'fin': fin_fase
                     }
             
-            # Separar flashes (solo tiempo total <60s)
+            # Separar flashes (tiempo total <60s)
             fases_normales = {}
             flashes = []
             
@@ -312,32 +305,31 @@ class FormHistorial(ctk.CTkFrame):
             pdf.cell(0, 10, f"Duración: {duracion_total}", 0, 1)
             pdf.ln(10)
             
-            # Fases normales
+            # Configuración de columnas (más angostas)
+            col_widths = [35, 30, 25, 35, 30]  # Total: 155mm
+            total_width = sum(col_widths)
+            left_margin = (210 - total_width) / 2  # Centrar en página A4 (210mm)
+            
+            # Crear tabla unificada centrada
+            pdf.set_left_margin(left_margin)
+            
+            # 1. FASE
             if fases_normales:
-                pdf.set_font("Arial", 'B', 14)
-                pdf.cell(0, 10, "FASES:", 0, 1)
-                pdf.ln(5)
-                
-                # Crear tabla para fases normales
-                pdf.set_fill_color(200, 220, 255)
-                pdf.set_font("Arial", 'B', 12)
-                
-                # Encabezados de tabla
-                col_widths = [40, 40, 40, 40, 40]
-                headers = ["Elemento", "Tiempo total", "Ciclos", "Hora inicio", "Hora fin"]
-                
-                for i, header in enumerate(headers):
-                    pdf.cell(col_widths[i], 10, header, 1, 0, 'C', 1)
-                pdf.ln()
-                
-                # Contenido
-                pdf.set_font("Arial", size=10)
                 for fase, datos in fases_normales.items():
-                    # Mostrar duración de la fase
+                    # Encabezado de fase (azul claro)
+                    pdf.set_fill_color(200, 220, 255)
                     pdf.set_font("Arial", 'B', 12)
-                    pdf.cell(0, 10, f"Fase {fase} (Duración: {datos['duracion']})", 0, 1)
-                    pdf.set_font("Arial", size=10)
+                    pdf.cell(total_width, 10, f"FASE {fase} (Duración: {datos['duracion']})", 1, 1, 'C', 1)
                     
+                    # Encabezados de columnas (gris)
+                    pdf.set_fill_color(220, 220, 220)
+                    headers = ["Elemento", "Tiempo", "Ciclos", "Hora inicio", "Hora fin"]
+                    for i, header in enumerate(headers):
+                        pdf.cell(col_widths[i], 10, header, 1, 0, 'C', 1)
+                    pdf.ln()
+                    
+                    # Contenido de la fase
+                    pdf.set_font("Arial", size=10)
                     for reg in datos['registros']:
                         tiempo_total = reg[3] or 0
                         ciclos = reg[4] or 0
@@ -345,49 +337,47 @@ class FormHistorial(ctk.CTkFrame):
                         fin = reg[1][11:19] if reg[1] != 'En progreso' and len(reg[1]) > 10 else reg[1]
                         
                         pdf.cell(col_widths[0], 8, reg[2], 1, 0)  # Elemento
-                        pdf.cell(col_widths[1], 8, f"{tiempo_total}s", 1, 0, 'C')  # Tiempo total
+                        pdf.cell(col_widths[1], 8, f"{tiempo_total}s", 1, 0, 'C')  # Tiempo
                         pdf.cell(col_widths[2], 8, str(ciclos) if ciclos > 0 else "Puntual", 1, 0, 'C')  # Ciclos
                         pdf.cell(col_widths[3], 8, inicio, 1, 0, 'C')  # Hora inicio
                         pdf.cell(col_widths[4], 8, fin, 1, 1, 'C')  # Hora fin
             
-            # Flashes
+            # 2. FLASHES (verde oscuro)
             if flashes:
-                pdf.ln(5)
-                pdf.set_font("Arial", 'B', 14)
-                pdf.cell(0, 10, "FLASHES:", 0, 1)
-                pdf.ln(5)
-                
-                # Encabezados de tabla
-                pdf.set_fill_color(220, 220, 220)
                 pdf.set_font("Arial", 'B', 12)
+                pdf.set_fill_color(0, 100, 0)  # Verde oscuro
+                pdf.cell(total_width, 10, "FLASHES", 1, 1, 'C', 1)
                 
+                # Reusar encabezados de columnas
+                pdf.set_fill_color(220, 220, 220)
                 for i, header in enumerate(headers):
                     pdf.cell(col_widths[i], 10, header, 1, 0, 'C', 1)
                 pdf.ln()
                 
-                # Contenido
-                pdf.set_font("Arial", size=10)
+                # Contenido de flashes (filas más delgadas)
+                pdf.set_font("Arial", size=8)
                 for flash in flashes:
                     tiempo_total = flash[3] or 0
                     ciclos = flash[4] or 0
                     inicio = flash[0][11:19] if len(flash[0]) > 10 else flash[0]
                     fin = flash[1][11:19] if flash[1] != 'En progreso' and len(flash[1]) > 10 else flash[1]
                     
-                    pdf.cell(col_widths[0], 8, flash[2], 1, 0)  # Elemento
-                    pdf.cell(col_widths[1], 8, f"{tiempo_total}s", 1, 0, 'C')  # Tiempo total
-                    pdf.cell(col_widths[2], 8, str(ciclos) if ciclos > 0 else "Puntual", 1, 0, 'C')  # Ciclos
-                    pdf.cell(col_widths[3], 8, inicio, 1, 0, 'C')  # Hora inicio
-                    pdf.cell(col_widths[4], 8, fin, 1, 1, 'C')  # Hora fin
+                    pdf.cell(col_widths[0], 6, flash[2], 1, 0)
+                    pdf.cell(col_widths[1], 6, f"{tiempo_total}s", 1, 0, 'C')
+                    pdf.cell(col_widths[2], 6, str(ciclos) if ciclos > 0 else "Puntual", 1, 0, 'C')
+                    pdf.cell(col_widths[3], 6, inicio, 1, 0, 'C')
+                    pdf.cell(col_widths[4], 6, fin, 1, 1, 'C')
             
-            # Sustrato
-            pdf.ln(10)
-            pdf.set_font("Arial", 'B', 14)
-            pdf.cell(0, 10, "SUSTRATO:", 0, 1)
-            pdf.ln(5)
-            
-            pdf.set_fill_color(200, 220, 255)
+            # 3. SUSTRATO (amarillo)
             pdf.set_font("Arial", 'B', 12)
-            pdf.cell(0, 10, f"{self.sustrato_entry.get()}", 1, 1, 'C', 1)
+            pdf.set_fill_color(255, 255, 0)  # Amarillo
+            pdf.cell(total_width, 10, "SUSTRATO", 1, 1, 'C', 1)
+            pdf.set_font("Arial", size=10)
+            pdf.set_fill_color(255, 255, 255)  # Fondo blanco
+            pdf.cell(total_width, 10, self.sustrato_entry.get(), 1, 1, 'C')
+            
+            # Restablecer margen
+            pdf.set_left_margin(10)
             
             # Guardar PDF
             nombre_archivo = f"reporte_{valores[0]}_{valores[1].replace(':', '')}.pdf"
