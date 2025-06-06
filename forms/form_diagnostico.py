@@ -3,6 +3,7 @@ import serial.tools.list_ports
 import threading
 import time
 from tkinter import messagebox
+import re
 
 class FormDiagnostico(ctk.CTkFrame):
     def __init__(self, panel_principal, user_id):
@@ -12,27 +13,33 @@ class FormDiagnostico(ctk.CTkFrame):
         self.configure(fg_color="#f4f8f7")
         self.pack(fill="both", expand=True, padx=10, pady=10)
         
+        # Mapeo de números de válvula a elementos
+        self.valvula_map = {
+            1: 'Al',
+            2: 'As',
+            3: 'Ga',
+            4: 'In',
+            5: 'N',
+            6: 'Mn',
+            7: 'Be',
+            8: 'Mg',
+            9: 'Si'
+        }
+        
         # Variables de estado
         self.estado_micro = "rojo"  # rojo/amarillo/verde
-        self.modo_proceso = "Inactivo"  # Automático/Semiautomático/Inactivo
-        self.estado_proceso = "Inactivo"  # En espera/En ejecución/Inactivo
-        self.valvulas_estado = {
-            'Al': {'estado': 'C', 'tiempo': 0},
-            'As': {'estado': 'C', 'tiempo': 0},
-            'Ga': {'estado': 'C', 'tiempo': 0},
-            'In': {'estado': 'C', 'tiempo': 0},
-            'N': {'estado': 'C', 'tiempo': 0},
-            'Mn': {'estado': 'C', 'tiempo': 0},
-            'Be': {'estado': 'C', 'tiempo': 0},
-            'Mg': {'estado': 'C', 'tiempo': 0},
-            'Si': {'estado': 'C', 'tiempo': 0}
-        }
+        self.modo_proceso = "Inactivo"
+        self.estado_proceso = "Inactivo"
+        self.valvulas_estado = {elemento: {'estado': 'C', 'tiempo': 0} for elemento in self.valvula_map.values()}
+        self.hilo_lectura = None
+        self.detener_hilo = threading.Event()
         
         # Configurar interfaz
         self._crear_interfaz()
         
-        # Iniciar hilo de monitoreo
-        self.monitorear_estado()
+        # Iniciar monitoreo
+        self.iniciar_monitoreo()
+
 
     def _crear_interfaz(self):
         """Crea la interfaz con los tres frames principales"""
@@ -65,19 +72,35 @@ class FormDiagnostico(ctk.CTkFrame):
 
     def _crear_frame_valvulas(self):
         """Crea el frame con el estado de las válvulas"""
-        # Encabezados
-        header_frame = ctk.CTkFrame(self.frame_valvulas)
-        header_frame.pack(fill="x", pady=(0, 10))
+        # Título del frame
+        ctk.CTkLabel(
+            self.frame_valvulas, 
+            text="Estado de las válvulas", 
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(pady=(5, 10), anchor="center")
         
-        ctk.CTkLabel(self.frame_valvulas, text="Estado del Microcontrolador", font=ctk.CTkFont(weight="bold")).pack(pady=5)
-        ctk.CTkLabel(header_frame, text="⏳ Tiempo").pack(side="left", padx=10)
-        ctk.CTkLabel(header_frame, text="🔓 Abierto").pack(side="left", padx=10)
-        ctk.CTkLabel(header_frame, text="🔒 Cerrado").pack(side="left", padx=10)
-        ctk.CTkLabel(header_frame, text="Válvula").pack(side="left", padx=10)
+        # Frame para encabezados
+        header_frame = ctk.CTkFrame(self.frame_valvulas, fg_color="transparent")
+        header_frame.pack(fill="x", pady=(0, 5))
+        
+        # Encabezados
+        ctk.CTkLabel(header_frame, text="Válvula", width=80, anchor="w").pack(side="left", padx=(10, 5))
+        ctk.CTkLabel(header_frame, text="⏳ Tiempo", width=80).pack(side="left", padx=5)
+        ctk.CTkLabel(header_frame, text="🔓 Abierto", width=80).pack(side="left", padx=5)
+        ctk.CTkLabel(header_frame, text="🔒 Cerrado", width=80).pack(side="left", padx=5)
+        
+        # Línea divisoria
+        ctk.CTkFrame(self.frame_valvulas, height=1, fg_color="#cccccc").pack(fill="x", pady=2)
         
         # Contenedor para las válvulas
         self.valvulas_container = ctk.CTkScrollableFrame(self.frame_valvulas)
         self.valvulas_container.pack(fill="both", expand=True)
+        
+        # Columnas del contenedor
+        self.valvulas_container.grid_columnconfigure(0, weight=1)
+        self.valvulas_container.grid_columnconfigure(1, weight=1)
+        self.valvulas_container.grid_columnconfigure(2, weight=1)
+        self.valvulas_container.grid_columnconfigure(3, weight=1)
         
         # Elementos para cada válvula
         self.valvula_widgets = {}
@@ -85,20 +108,34 @@ class FormDiagnostico(ctk.CTkFrame):
             frame = ctk.CTkFrame(self.valvulas_container)
             frame.pack(fill="x", pady=2)
             
+            # Nombre válvula
+            ctk.CTkLabel(frame, text=elemento, width=80, anchor="w").pack(side="left", padx=(10, 5))
+            
             # Tiempo
-            tiempo_label = ctk.CTkLabel(frame, text="0000", width=60)
+            tiempo_label = ctk.CTkLabel(frame, text="0000", width=80)
             tiempo_label.pack(side="left", padx=5)
             
-            # LED Abierto (verde)
-            led_abierto = ctk.CTkLabel(frame, text="", width=20, height=20, corner_radius=10)
-            led_abierto.pack(side="left", padx=5)
+            # LED Abierto (verde) (30px x 30px)
+            led_abierto = ctk.CTkLabel(
+                frame, 
+                text="", 
+                width=30, 
+                height=30, 
+                corner_radius=15,
+                fg_color="gray"
+            )
+            led_abierto.pack(side="left", padx=(20, 10))
             
-            # LED Cerrado (gris)
-            led_cerrado = ctk.CTkLabel(frame, text="", width=20, height=20, corner_radius=10)
-            led_cerrado.pack(side="left", padx=5)
-            
-            # Nombre válvula
-            ctk.CTkLabel(frame, text=elemento).pack(side="left", padx=5)
+            # LED Cerrado (gris) (30px x 30px)
+            led_cerrado = ctk.CTkLabel(
+                frame, 
+                text="", 
+                width=30, 
+                height=30, 
+                corner_radius=15,
+                fg_color="gray"
+            )
+            led_cerrado.pack(side="left", padx=(40, 10))
             
             self.valvula_widgets[elemento] = {
                 'tiempo': tiempo_label,
@@ -110,8 +147,12 @@ class FormDiagnostico(ctk.CTkFrame):
         ctk.CTkButton(
             self.frame_valvulas, 
             text="Actualizar Estados", 
-            command=self.actualizar_estados_valvulas
-        ).pack(side="bottom", pady=10)
+            command=self.actualizar_estados_valvulas,
+            width=150,
+            height=35,
+            fg_color="#06918A",
+            hover_color="#057a75"
+        ).pack(side="bottom", pady=(10, 5))
 
     def _crear_frame_micro(self):
         """Crea el frame con el estado del microcontrolador"""
@@ -181,6 +222,126 @@ class FormDiagnostico(ctk.CTkFrame):
             command=self.actualizar_estado_proceso
         ).pack(pady=10)
 
+    def iniciar_monitoreo(self):
+        """Inicia el hilo de monitoreo serial"""
+        if self.hilo_lectura and self.hilo_lectura.is_alive():
+            self.detener_hilo.set()
+            self.hilo_lectura.join()
+        
+        self.detener_hilo.clear()
+        self.hilo_lectura = threading.Thread(target=self.leer_serial, daemon=True)
+        self.hilo_lectura.start()
+
+    def leer_serial(self):
+        """Lee constantemente el puerto serial para actualizar estados"""
+        buffer = ""
+        while not self.detener_hilo.is_set():
+            if self.serial_connection and self.serial_connection.is_open:
+                try:
+                    # Leer datos disponibles
+                    data = self.serial_connection.read(self.serial_connection.in_waiting or 1).decode('utf-8')
+                    if data:
+                        buffer += data
+                        
+                        # Procesar mensajes completos (terminados con \n)
+                        while '\n' in buffer:
+                            linea, buffer = buffer.split('\n', 1)
+                            self.procesar_mensaje(linea.strip())
+                            
+                except Exception as e:
+                    print(f"Error lectura serial: {e}")
+                    self.estado_micro = "rojo"
+                    self.after(0, self.actualizar_estado_micro)
+                    time.sleep(1)
+            else:
+                time.sleep(0.5)
+
+    def procesar_mensaje(self, mensaje):
+        """Procesa un mensaje recibido de la ESP32"""
+        print(f"Mensaje recibido: {mensaje}")  # Debug
+        
+        # Actualizar estado micro a verde (hay comunicación)
+        self.estado_micro = "verde"
+        self.after(0, self.actualizar_estado_micro)
+        
+        # Expresión regular para buscar patrones M#E
+        patron = r'M(\d+)([AC])'
+        coincidencias = re.findall(patron, mensaje)
+        
+        if coincidencias:
+            for num_valvula, estado in coincidencias:
+                try:
+                    num_valvula = int(num_valvula)
+                    if 1 <= num_valvula <= 9:
+                        elemento = self.valvula_map[num_valvula]
+                        self.valvulas_estado[elemento]['estado'] = estado
+                        
+                        # Si está abierta, incrementar tiempo
+                        if estado == 'A':
+                            self.valvulas_estado[elemento]['tiempo'] += 1
+                        else:
+                            self.valvulas_estado[elemento]['tiempo'] = 0
+                        
+                        # Actualizar interfaz
+                        self.after(0, self.actualizar_estados_valvulas)
+                except (ValueError, KeyError):
+                    continue
+        
+        # definir estados del proceso
+        if "AUTOMATICO" in mensaje:
+            self.modo_proceso = "Automático"
+            self.estado_proceso = "En ejecución"
+        elif "SEMIAUTOMATICO" in mensaje:
+            self.modo_proceso = "Semiautomático"
+            self.estado_proceso = "En ejecución"
+        elif "DETENIDO" in mensaje:
+            self.estado_proceso = "Inactivo"
+        
+        self.after(0, self.actualizar_estado_proceso)
+
+    def probar_conexion(self):
+        """Intenta establecer conexión con la ESP32 y configurar lectura"""
+        try:
+            puertos = serial.tools.list_ports.comports()
+            if not puertos:
+                self.estado_micro = "rojo"
+                messagebox.showwarning("Sin conexión", "No se detectaron puertos seriales.")
+            else:
+                for puerto in puertos:
+                    if 'USB' in puerto.description or 'Serial' in puerto.description or 'ESP' in puerto.description:
+                        try:
+                            # Cerrar conexión existente
+                            if self.serial_connection and self.serial_connection.is_open:
+                                self.serial_connection.close()
+                            
+                            # Nueva conexión
+                            self.serial_connection = serial.Serial(
+                                port=puerto.device,
+                                baudrate=115200,
+                                timeout=1
+                            )
+                            self.estado_micro = "amarillo"
+                            self.after(0, self.actualizar_estado_micro)
+                            
+                            # Iniciar hilo de lectura
+                            self.iniciar_monitoreo()
+                            
+                            # Enviar comando de solicitud de estado
+                            self.serial_connection.write(b"ESTADO?\n")
+                            
+                            return
+                        except Exception as e:
+                            print(f"No se pudo abrir {puerto.device}: {e}")
+                            self.estado_micro = "rojo"
+                else:
+                    self.estado_micro = "rojo"
+                    messagebox.showerror("Error", "No se encontró un dispositivo ESP32 conectado.")
+        except Exception as e:
+            self.estado_micro = "rojo"
+            messagebox.showerror("Error", f"No se pudo configurar el puerto serial: {str(e)}")
+        
+        self.after(0, self.actualizar_estado_micro)
+
     def actualizar_estados_valvulas(self):
         """Actualiza la visualización del estado de las válvulas"""
         for elemento, widgets in self.valvula_widgets.items():
@@ -194,7 +355,7 @@ class FormDiagnostico(ctk.CTkFrame):
                 widgets['led_cerrado'].configure(fg_color="gray")
             else:
                 widgets['led_abierto'].configure(fg_color="gray")
-                widgets['led_cerrado'].configure(fg_color="gray")  # Originalmente sería gris para cerrado
+                widgets['led_cerrado'].configure(fg_color="gray")
 
     def actualizar_estado_micro(self):
         """Actualiza el semáforo del microcontrolador"""
@@ -224,71 +385,12 @@ class FormDiagnostico(ctk.CTkFrame):
         elif self.estado_proceso == "En ejecución":
             self.led_verde_proceso.configure(fg_color="green")
 
-    def probar_conexion(self):
-        """Intenta establecer conexión con la ESP32"""
-        try:
-            puertos = serial.tools.list_ports.comports()
-            if not puertos:
-                self.estado_micro = "rojo"
-                messagebox.showwarning("Sin conexión", "No se detectaron puertos seriales.")
-            else:
-                for puerto in puertos:
-                    if 'USB' in puerto.description or 'Serial' in puerto.description or 'ESP' in puerto.description:
-                        try:
-                            self.serial_connection = serial.Serial(port=puerto.device, baudrate=115200, timeout=1)
-                            self.estado_micro = "amarillo"
-                            
-                            # Simular respuesta de la ESP32 (en un caso real esto vendría del puerto serial)
-                            threading.Thread(target=self.simular_respuesta_esp32).start()
-                            
-                            break
-                        except Exception as e:
-                            print(f"No se pudo abrir {puerto.device}: {e}")
-                            self.estado_micro = "rojo"
-                else:
-                    self.estado_micro = "rojo"
-                    messagebox.showerror("Error", "No se encontró un dispositivo ESP32 conectado.")
-        except Exception as e:
-            self.estado_micro = "rojo"
-            messagebox.showerror("Error", f"No se pudo configurar el puerto serial: {str(e)}")
-        
-        self.actualizar_estado_micro()
-
-    def simular_respuesta_esp32(self):
-        """Simula la respuesta de la ESP32 después de un tiempo"""
-        time.sleep(2)  # Simular demora en la respuesta
-        self.estado_micro = "verde"
-        self.after(0, self.actualizar_estado_micro)
-        
-        # Simular actualización de estado de válvulas
-        for elemento in self.valvulas_estado:
-            self.valvulas_estado[elemento]['estado'] = 'A' if elemento in ['Al', 'Ga'] else 'C'
-            self.valvulas_estado[elemento]['tiempo'] = 1234 if elemento in ['Al', 'Ga'] else 0
-        
-        self.after(0, self.actualizar_estados_valvulas)
-
-    def monitorear_estado(self):
-        """Hilo para monitorear constantemente el estado del sistema"""
-        #SIMULACIÓN
-        
-        # Cambiar modo de proceso cada 10 segundos (simulación)
-        def cambiar_modo():
-            modos = ["Automático", "Semiautomático", "Inactivo"]
-            estados = ["En espera", "En ejecución", "Inactivo"]
-            
-            while True:
-                for modo in modos:
-                    self.modo_proceso = modo
-                    self.after(0, self.actualizar_estado_proceso)
-                    
-                    for estado in estados:
-                        self.estado_proceso = estado
-                        self.after(0, self.actualizar_estado_proceso)
-                        time.sleep(5)
-        
-        threading.Thread(target=cambiar_modo, daemon=True).start()
-
     def __del__(self):
         """Cierra la conexión serial al destruir el objeto"""
+        self.detener_hilo.set()
+        if self.hilo_lectura and self.hilo_lectura.is_alive():
+            self.hilo_lectura.join()
+        
         if self.serial_connection and self.serial_connection.is_open:
             self.serial_connection.close()
+
