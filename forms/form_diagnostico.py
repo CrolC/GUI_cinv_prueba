@@ -385,12 +385,22 @@ class FormDiagnostico(ctk.CTkFrame):
         elif self.estado_proceso == "En ejecución":
             self.led_verde_proceso.configure(fg_color="green")
 
-    def __del__(self):
-        """Cierra la conexión serial al destruir el objeto"""
-        self.detener_hilo.set()
-        if self.hilo_lectura and self.hilo_lectura.is_alive():
-            self.hilo_lectura.join()
+    # def __del__(self):
+    #     """Cierra la conexión serial al destruir el objeto"""
+    #     self.detener_hilo.set()
+    #     if self.hilo_lectura and self.hilo_lectura.is_alive():
+    #         self.hilo_lectura.join()
         
-        if self.serial_connection and self.serial_connection.is_open:
-            self.serial_connection.close()
+    #     if self.serial_connection and self.serial_connection.is_open:
+    #         self.serial_connection.close()
 
+
+    def __del__(self):
+        """Cierra la conexión serial y detiene hilos al destruir el objeto"""
+        self.detener_hilo.set()
+        if hasattr(self, 'hilo_lectura') and self.hilo_lectura and self.hilo_lectura.is_alive():
+            self.hilo_lectura.join(timeout=1)
+        
+        if hasattr(self, 'serial_connection') and self.serial_connection and self.serial_connection.is_open:
+            self.serial_connection.close()
+            print("Conexión serial cerrada en Diagnostico")
