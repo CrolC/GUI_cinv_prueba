@@ -13,6 +13,11 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
     def __init__(self, panel_principal, user_id):  
         super().__init__(panel_principal)
         self.user_id = user_id
+        self.master_panel = panel_principal.master  # Acceso al MasterPanel
+        
+        # Establecer bloqueo al crear el panel
+        self.master_panel.establecer_bloqueo("paneldecontrol")
+        
         self.proceso_id = self.generar_proceso_id_diario()  # ID único por día
         self.ultima_fecha_reinicio = date.today()  # Para controlar cambios de día
         
@@ -205,8 +210,6 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
                                    command=self.limpiar_notificaciones)
         btn_limpiar.pack(side="right", padx=5, pady=(0,5))
 
-        self.pack(padx=10, pady=10, fill="both", expand=True)
-
         # Botón de paro de emergencia
         btn_paro = ctk.CTkButton(self.frame_notificaciones, 
                                     text="STOP EMERGENCIA", 
@@ -215,7 +218,6 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
                                     command=self.paro_emergencia)
         btn_paro.pack(side="right", padx=5, pady=(0,5))
         self.pack(padx=10, pady=10, fill="both", expand=True)
-
 
     def generar_proceso_id_diario(self):
         """Genera un ID de proceso único para el día actual"""
@@ -272,6 +274,9 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
         # Opcional: Mostrar mensaje emergente
         messagebox.showwarning("PARO DE EMERGENCIA", 
                             "Todos los procesos han sido detenidos por seguridad")
+        
+        # Liberar bloqueo
+        self.master_panel.liberar_bloqueo()
 
     def reiniciar_ciclico(self):
         """Reinicia todos los valores del proceso cíclico y genera nuevo proceso_id"""
@@ -288,7 +293,7 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
             ciclos_actual.configure(text="0")
             self.toggle_controles_ciclicos(i)
         
-        self.agregar_notificacion(f"Valores del proceso cíclico reiniciados") #Para checar ID = "Nuevo ID: {self.proceso_id}"
+        self.agregar_notificacion(f"Valores del proceso cíclico reiniciados") #Para checar ID = "Nuevo ID: {self.proceso_id}""
 
     def reiniciar_puntual(self):
         """Reinicia todos los valores del proceso puntual y genera nuevo proceso_id"""
@@ -304,7 +309,7 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
             self.estados_valvulas[i] = False
             self.toggle_controles_puntuales(i)
         
-        self.agregar_notificacion(f"Valores del proceso puntual reiniciados") #Para checar ID = "Nuevo ID: {self.proceso_id}"
+        self.agregar_notificacion(f"Valores del proceso puntual reiniciados") #Para checar ID = "Nuevo ID: {self.proceso_id}""
 
     def toggle_controles_ciclicos(self, idx):
         """Habilita/deshabilita controles según estado del switch"""
@@ -883,3 +888,20 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
         else:
             # Si está cerrado, abrir con el tiempo configurado
             self.ejecutar_valvula_puntual(idx)
+
+    def __del__(self):
+        """Libera recursos al destruir el panel"""
+        # Liberar bloqueo primero
+        if hasattr(self, 'master_panel'):
+            self.master_panel.liberar_bloqueo()
+        
+        # Detener todos los hilos de ejecución
+        for i in range(9):
+            if hasattr(self, 'hilos_ejecucion') and self.hilos_ejecucion[i] and self.hilos_ejecucion[i].is_alive():
+                self.hilos_ejecucion[i].do_run = False
+        
+        # Cerrar conexión serial
+        if hasattr(self, 'serial_connection') and self.serial_connection and self.serial_connection.is_open:
+            self.serial_connection.close()
+            print("Conexión serial cerrada en PaneldeControl")
+        
