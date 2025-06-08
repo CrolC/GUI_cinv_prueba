@@ -1,7 +1,8 @@
 import customtkinter as ctk
 from PIL import Image
 import sys
-from tkinter import font
+import threading
+from tkinter import messagebox
 sys.path.append('d:/Python_Proyectos/INTER_C3')
 from forms.form_nuevoproceso import FormNuevoProceso
 from forms.form_paneldecontrol import FormPaneldeControl
@@ -14,12 +15,15 @@ COLOR_MENU_LATERAL = "#1f3334"
 COLOR_CUERPO_PRINCIPAL = "#f4f8f7"
 COLOR_MENU_CURSOR_ENCIMA = "#18a9b1"
 
-
 class MasterPanel(ctk.CTk):
     def __init__(self, user_id):
         super().__init__()
         self.user_id = user_id
         self._imagenes = []
+        self.paneles_activos = {}  # Diccionario para mantener los paneles
+        self.proceso_activo = None  # 'nuevoproceso' o 'paneldecontrol' o None
+        self.lock = threading.Lock()  # Para sincronización de threads
+        self.panel_actual = None  # Referencia al panel actualmente visible
         
         self.config_window()
         self.logo = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/logocinves_predeterm.png", (400, 136))
@@ -41,18 +45,18 @@ class MasterPanel(ctk.CTk):
                 except:
                     pass
         
-            # Destruir widgets hijos
-            for child in self.winfo_children():
-                try:
-                    child.destroy()
-                except:
-                    pass
-        
+            # Limpiar todos los paneles activos
+            for nombre, panel in self.paneles_activos.items():
+                if hasattr(panel, '__del__'):
+                    panel.__del__()
+                if hasattr(panel, 'destroy'):
+                    panel.destroy()
+            
             # Liberar recursos
             if hasattr(self, '_imagenes'):
                 del self._imagenes
         
-            #cierre en orden
+            # Cierre en orden
             self.quit()
             self.destroy()
         except Exception as e:
@@ -105,6 +109,8 @@ class MasterPanel(ctk.CTk):
         
         self.cuerpo_principal = ctk.CTkFrame(self, fg_color=COLOR_CUERPO_PRINCIPAL)
         self.cuerpo_principal.pack(side=ctk.RIGHT, fill='both', expand=True)
+        self.cuerpo_principal.grid_rowconfigure(0, weight=1)
+        self.cuerpo_principal.grid_columnconfigure(0, weight=1)
     
     def controles_barra_superior(self):
         font_awesome = ctk.CTkFont(family="FontAwesome", size=12)
@@ -151,16 +157,70 @@ class MasterPanel(ctk.CTk):
                 print(f"Error al crear botón {text}: {e}")
     
     def controles_cuerpo(self):
-        try:
-            if hasattr(self, 'logo') and self.logo:
-                label = ctk.CTkLabel(self.cuerpo_principal, image=self.logo, text="", fg_color=COLOR_CUERPO_PRINCIPAL)
+        """Muestra el panel inicial (logo) sin destruir otros"""
+        if not hasattr(self, 'panel_inicial'):
+            try:
+                if hasattr(self, 'logo') and self.logo:
+                    self.panel_inicial = ctk.CTkLabel(self.cuerpo_principal, image=self.logo, text="", fg_color=COLOR_CUERPO_PRINCIPAL)
+                else:
+                    self.panel_inicial = ctk.CTkLabel(self.cuerpo_principal, text="Bienvenido al Sistema MBE", font=ctk.CTkFont(size=20), fg_color=COLOR_CUERPO_PRINCIPAL)
+                
+                self.panel_inicial.pack(fill="both", expand=True)
+                self.panel_actual = self.panel_inicial
+            except Exception as e:
+                print(f"Error al crear el cuerpo principal: {e}")
+
+    def verificar_bloqueo(self, nombre_panel):
+        """Verifica si se puede abrir el panel solicitado"""
+        if nombre_panel in ['nuevoproceso', 'paneldecontrol']:
+            with self.lock:
+                if self.proceso_activo and self.proceso_activo != nombre_panel:
+                    messagebox.showwarning(
+                        "Proceso en ejecución",
+                        f"No se puede abrir {nombre_panel} mientras hay un proceso activo en {self.proceso_activo}"
+                    )
+                    return False
+        return True
+
+    def establecer_bloqueo(self, nombre_panel):
+        """Establece el panel activo que bloquea los demás"""
+        with self.lock:
+            self.proceso_activo = nombre_panel
+
+    def liberar_bloqueo(self):
+        """Libera el bloqueo de proceso activo"""
+        with self.lock:
+            self.proceso_activo = None
+
+    def mostrar_panel(self, nombre):
+        """Muestra un panel existente o crea uno nuevo sin destruir los existentes"""
+        # Ocultar el panel actual si existe
+        if self.panel_actual and self.panel_actual.winfo_exists():
+            self.panel_actual.pack_forget()
+        
+        # Verificar si el panel ya existe y no ha sido destruido
+        if nombre in self.paneles_activos and self.paneles_activos[nombre].winfo_exists():
+            panel = self.paneles_activos[nombre]
+        else:
+            # Crear nuevo panel según el tipo solicitado
+            if nombre == "nuevoproceso":
+                panel = FormNuevoProceso(self.cuerpo_principal, self.user_id)
+            elif nombre == "paneldecontrol":
+                panel = FormPaneldeControl(self.cuerpo_principal, self.user_id)
+            elif nombre == "historial":
+                panel = FormHistorial(self.cuerpo_principal, self.user_id)
+            elif nombre == "diagnostico":
+                panel = FormDiagnostico(self.cuerpo_principal, self.user_id)
+            elif nombre == "monitoreo":
+                panel = FormMonitoreo(self.cuerpo_principal, self.user_id)
             else:
-                label = ctk.CTkLabel(self.cuerpo_principal, text="Bienvenido al Sistema MBE", font=ctk.CTkFont(size=20), fg_color=COLOR_CUERPO_PRINCIPAL)
-            label.place(x=0, y=0, relwidth=1, relheight=1)
-        except Exception as e:
-            print(f"Error al crear el cuerpo principal: {e}")
-            label = ctk.CTkLabel(self.cuerpo_principal, text="Bienvenido al Sistema MBE", font=ctk.CTkFont(size=20), fg_color=COLOR_CUERPO_PRINCIPAL)
-            label.place(x=0, y=0, relwidth=1, relheight=1)
+                return
+                
+            self.paneles_activos[nombre] = panel
+        
+        # Mostrar el panel
+        panel.pack(fill="both", expand=True)
+        self.panel_actual = panel
 
     def toggle_panel(self):
         if self.menu_lateral.winfo_ismapped():
@@ -169,30 +229,30 @@ class MasterPanel(ctk.CTk):
             self.menu_lateral.pack(side=ctk.LEFT, fill='both', expand=False)  
 
     def abrir_nuevoproceso(self):
-        self.limpiar_panel(self.cuerpo_principal)
-        FormNuevoProceso(self.cuerpo_principal, self.user_id) 
+        if self.verificar_bloqueo("nuevoproceso"):
+            self.mostrar_panel("nuevoproceso")
+            self.establecer_bloqueo("nuevoproceso")
 
     def abrir_paneldecontrol(self):
-        self.limpiar_panel(self.cuerpo_principal)
-        FormPaneldeControl(self.cuerpo_principal, self.user_id)  
+        if self.verificar_bloqueo("paneldecontrol"):
+            self.mostrar_panel("paneldecontrol")
+            self.establecer_bloqueo("paneldecontrol")
 
     def abrir_historial(self):
-        print("Abriendo panel de historial...")
-        self.limpiar_panel(self.cuerpo_principal)
-        FormHistorial(self.cuerpo_principal, self.user_id)  
+        self.mostrar_panel("historial")
 
     def abrir_diagnostico(self):
-        self.limpiar_panel(self.cuerpo_principal)
-        FormDiagnostico(self.cuerpo_principal, self.user_id)  
+        self.mostrar_panel("diagnostico")
 
     def abrir_monitoreo(self):
-        self.limpiar_panel(self.cuerpo_principal)
-        FormMonitoreo(self.cuerpo_principal, self.user_id)  
-    
-    def limpiar_panel(self, panel):
-        for widget in panel.winfo_children():
-            widget.destroy()
+        self.mostrar_panel("monitoreo")
+
+    def __del__(self):
+        """Asegurar limpieza adecuada al cerrar"""
+        for nombre, panel in self.paneles_activos.items():
+            if hasattr(panel, '__del__'):
+                panel.__del__()
 
 if __name__ == "__main__":
-    app = MasterPanel() 
+    app = MasterPanel()  
     app.mainloop()
