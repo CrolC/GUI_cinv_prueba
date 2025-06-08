@@ -7,6 +7,8 @@ from tkinter import ttk
 from fpdf import FPDF
 import os
 
+#eliminar columna de proceso id (ver como mostrar creciento por conjunto)
+#agregar entrada de temperatura/otros parametros
 class FormHistorial(ctk.CTkFrame):
     def __init__(self, panel_principal, user_id):  
         super().__init__(panel_principal)
@@ -307,7 +309,7 @@ class FormHistorial(ctk.CTkFrame):
             
             # Título
             pdf.set_font("Arial", 'B', 16)
-            pdf.cell(0, 10, "Reporte del Sistema MBE", 0, 1, 'C')
+            pdf.cell(0, 10, "Reporte de crecimiento", 0, 1, 'C')
             pdf.ln(5)
             
             # Información básica
@@ -413,3 +415,24 @@ class FormHistorial(ctk.CTkFrame):
             print(f"Error: {traceback.format_exc()}")
         finally:
             conn.close()
+
+    # def __del__(self):
+    #     """Cerrar conexión serial al destruir el objeto"""
+    #     if self.serial_connection and self.serial_connection.is_open:
+    #         self.serial_connection.close()
+    #         print("Conexión serial cerrada")
+    #         self.agregar_notificacion("Conexión serial cerrada")
+
+    def __del__(self):
+        """Libera recursos de la base de datos"""
+        if hasattr(self, 'conn'):
+            try:
+                self.conn.close()
+                print("Conexión a DB cerrada en Historial")
+            except:
+                pass
+        
+        # Cerrar figura de matplotlib si se usa
+        if hasattr(self, 'fig'):
+            import matplotlib.pyplot as plt
+            plt.close(self.fig)
