@@ -19,12 +19,6 @@ class FormNuevoProceso(ctk.CTkFrame):
         self.serial_connection = None
         self.master_panel = panel_principal.master  # Acceso al MasterPanel
         
-        # Establecer bloqueo al crear el panel
-        self.master_panel.establecer_bloqueo("nuevoproceso")
-        
-        self.pack(fill="both", expand=True) 
-        
-        # Inicializar variables de estado
         self.proceso_en_ejecucion = False
         self.proceso_pausado = False
         self.fase_actual = 0
@@ -362,7 +356,9 @@ class FormNuevoProceso(ctk.CTkFrame):
         try:
             if not self.proceso_en_ejecucion:
                 # Confirmar bloqueo con el MasterPanel
-                self.master_panel.establecer_bloqueo("nuevoproceso")
+                if not self.master_panel.verificar_ejecucion("nuevoproceso"):
+                    return
+                self.master_panel.activar_bloqueo_hardware("nuevoproceso")
                 
                 # Preparar datos de válvulas activas
                 self.valvulas_activas = {}
@@ -402,11 +398,11 @@ class FormNuevoProceso(ctk.CTkFrame):
                     mensaje = "Debe configurar al menos una válvula con tiempo de apertura válido"
                     messagebox.showwarning("Advertencia", mensaje)
                     self.agregar_notificacion(mensaje)
-                    self.master_panel.liberar_bloqueo()
+                    self.master_panel.liberar_bloqueo_hardware()
                     return
                 
                 if not self.enviar_cadena_serial():
-                    self.master_panel.liberar_bloqueo()
+                    self.master_panel.liberar_bloqueo_hardware()
                     return
                 
                 self.proceso_en_ejecucion = True
@@ -422,12 +418,17 @@ class FormNuevoProceso(ctk.CTkFrame):
                 messagebox.showinfo("Éxito", mensaje)
                 self.agregar_notificacion(mensaje)
         except Exception as e:
-            self.master_panel.liberar_bloqueo()
+            self.master_panel.liberar_bloqueo_hardware()
             messagebox.showerror("Error", f"Error al iniciar proceso: {str(e)}")
             self.agregar_notificacion(f"Error al iniciar proceso: {str(e)}")
 
     def enviar_cadena_serial(self):
         try:
+            if not self.master_panel.verificar_ejecucion("nuevoproceso"):
+                return False
+                
+            self.master_panel.activar_bloqueo_hardware("nuevoproceso")
+            
             proceso_id = str(uuid.uuid4())
             fecha_actual = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cadenas_fases = []
@@ -446,7 +447,7 @@ class FormNuevoProceso(ctk.CTkFrame):
                             'fecha_inicio': fecha_actual,
                             'fecha_fin': '',
                             'hora_instruccion': fecha_actual,
-                            'valvula': f"Válvula {valvula['elemento']}",  # Usamos el nombre del elemento
+                            'valvula': f"Válvula {valvula['elemento']}",
                             'tiempo': tiempo,
                             'ciclos': ciclos,
                             'estado': 'A'
@@ -499,90 +500,21 @@ class FormNuevoProceso(ctk.CTkFrame):
                         print(f"Respuesta ESP32: {respuesta}")
                         
                         if "OK" not in respuesta:
+                            self.master_panel.liberar_bloqueo_hardware()
                             messagebox.showerror("Error", "El dispositivo no confirmó la recepción")
                             return False
                 else:
+                    self.master_panel.liberar_bloqueo_hardware()
                     messagebox.showerror("Error", "No hay conexión serial establecida")
                     return False
             
             return True
         except Exception as e:
+            self.master_panel.liberar_bloqueo_hardware()
             messagebox.showerror("Error", f"No se pudo enviar la cadena: {str(e)}")
             self.agregar_notificacion("Error al enviar instrucciones")
             print(f"Error detallado: {traceback.format_exc()}")
             return False
-
-    def ejecutar_proceso(self):
-        """Ejecuta el proceso fase por fase"""
-        try:
-            while self.fase_actual < len(self.fases_datos) and self.proceso_en_ejecucion:
-                # Obtener válvulas activas de esta fase
-                valvulas_fase = {k: v for k, v in self.valvulas_activas.items() if v['fase'] == self.fase_actual}
-                
-                if not valvulas_fase:
-                    self.fase_actual += 1
-                    continue
-                
-                # Iniciar tiempo de fase
-                self.tiempo_inicio_fase = time.time()
-                tiempo_pausa = 0
-                fase_completada = False
-                
-                while not fase_completada and self.proceso_en_ejecucion:
-                    if self.proceso_pausado:
-                        tiempo_pausa = time.time()
-                        while self.proceso_pausado and self.proceso_en_ejecucion:
-                            time.sleep(0.1)
-                        if not self.proceso_en_ejecucion:
-                            break
-                        
-                        self.tiempo_inicio_fase += time.time() - tiempo_pausa
-                        self.agregar_notificacion("Proceso reanudado")
-                    
-                    # Calcular tiempo transcurrido en esta fase
-                    tiempo_actual = time.time()
-                    tiempo_transcurrido_fase = tiempo_actual - self.tiempo_inicio_fase
-                    
-                    # Actualizar todas las válvulas de esta fase
-                    fase_completada = True
-                    for key, valvula in valvulas_fase.items():
-                        if valvula['ciclos_totales'] > 0:  # Válvula con ciclos
-                            if valvula['ciclos_completados'] < valvula['ciclos_totales']:
-                                ciclos_completos = int(tiempo_transcurrido_fase / valvula['tiempo_ciclo'])
-                                ciclos_completos = min(ciclos_completos, valvula['ciclos_totales'])
-                                
-                                if ciclos_completos > valvula['ciclos_completados']:
-                                    valvula['ciclos_completados'] = ciclos_completos
-                                    valvula['progreso'].configure(text=f"{ciclos_completos}/{valvula['ciclos_totales']}")
-                                    self.agregar_notificacion(f"Válvula {valvula['elemento']}: Ciclo {ciclos_completos}/{valvula['ciclos_totales']} completado")
-                                
-                                if valvula['ciclos_completados'] < valvula['ciclos_totales']:
-                                    fase_completada = False
-                        else:  # Válvula sin ciclos (solo tiempo)
-                            if tiempo_transcurrido_fase < valvula['tiempo_ciclo']:
-                                tiempo_restante = max(0, valvula['tiempo_ciclo'] - tiempo_transcurrido_fase)
-                                valvula['progreso'].configure(text=f"T: {int(tiempo_restante)}s")
-                                fase_completada = False
-                            else:
-                                valvula['progreso'].configure(text="Completado")
-                                self.agregar_notificacion(f"Válvula {valvula['elemento']}: Tiempo completado")
-                    
-                    time.sleep(0.1)
-                
-                if fase_completada:
-                    self.fase_actual += 1
-                    self.agregar_notificacion(f"Fase {self.fase_actual} completada")
-            
-            # Finalizar proceso
-            if self.proceso_en_ejecucion:
-                self.proceso_en_ejecucion = False
-                self.ejecutar_btn.configure(state="normal")
-                self.pausar_btn.configure(state="disabled")
-                mensaje = "Proceso completado correctamente"
-                messagebox.showinfo("Éxito", mensaje)
-                self.agregar_notificacion(mensaje)
-        finally:
-            self.master_panel.liberar_bloqueo()
 
     def pausar_proceso(self):
         """Pausa o reanuda el proceso"""
@@ -597,6 +529,7 @@ class FormNuevoProceso(ctk.CTkFrame):
                 if self.serial_connection and self.serial_connection.is_open:
                     self.serial_connection.write(b"XXXXXXXXXXXXXXXX")  # Comando de pausa
                     print("Comando de pausa enviado a ESP32 = XXXXXXXXXXXXXXXX")
+                    self.master_panel.liberar_bloqueo_hardware()
             else:
                 self.tiempo_inicio_fase += time.time() - self.tiempo_pausa
                 self.pausar_btn.configure(text="Pausar Rutina")
@@ -604,8 +537,10 @@ class FormNuevoProceso(ctk.CTkFrame):
                 
                 # Enviar comando de reanudar a ESP32
                 if self.serial_connection and self.serial_connection.is_open:
-                    self.serial_connection.write(b"YYYYYYYYYYYYYYYY") # Comando de reanudar
-                    print("Comando de reanudar enviado a ESP32 = YYYYYYYYYYYYYYYY")
+                    if self.master_panel.verificar_ejecucion("nuevoproceso"):
+                        self.master_panel.activar_bloqueo_hardware("nuevoproceso")
+                        self.serial_connection.write(b"YYYYYYYYYYYYYYYY") # Comando de reanudar
+                        print("Comando para reanudar enviado a ESP32 = YYYYYYYYYYYYYYYY")
 
     def reiniciar_rutina(self):
         """Reinicia completamente la rutina"""
@@ -616,8 +551,9 @@ class FormNuevoProceso(ctk.CTkFrame):
             
             # Enviar comando de detener a ESP32
             if self.serial_connection and self.serial_connection.is_open:
-                self.serial_connection.write(b"STOP")
+                self.serial_connection.write(b"PPPPPPPPPPPPPPPP")
                 self.agregar_notificacion("Proceso detenido")
+                self.master_panel.liberar_bloqueo_hardware()
         
         self.proceso_pausado = False
         self.pausar_btn.configure(text="Pausar Rutina", state="disabled")
@@ -655,7 +591,8 @@ class FormNuevoProceso(ctk.CTkFrame):
             ])
         
         # Liberar bloqueo
-        self.master_panel.liberar_bloqueo()
+        self.master_panel.liberar_bloqueo_hardware()
+
 
     def guardar_proceso_db(self, datos_proceso):
         """Guarda los datos del proceso en la base de datos"""
@@ -735,7 +672,7 @@ class FormNuevoProceso(ctk.CTkFrame):
         """Cierra la conexión serial y libera recursos al destruir el objeto"""
         # Liberar bloqueo primero
         if hasattr(self, 'master_panel'):
-            self.master_panel.liberar_bloqueo()
+            self.master_panel.liberar_bloqueo_hardware()
         
         # Detener cualquier proceso en ejecución
         if hasattr(self, 'proceso_en_ejecucion') and self.proceso_en_ejecucion:
@@ -747,4 +684,3 @@ class FormNuevoProceso(ctk.CTkFrame):
         if hasattr(self, 'serial_connection') and self.serial_connection and self.serial_connection.is_open:
             self.serial_connection.close()
             print("Conexión serial cerrada en NuevoProceso")
-            
