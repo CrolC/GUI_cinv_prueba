@@ -15,9 +15,6 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
         self.user_id = user_id
         self.master_panel = panel_principal.master  # Acceso al MasterPanel
         
-        # Establecer bloqueo al crear el panel
-        self.master_panel.establecer_bloqueo("paneldecontrol")
-        
         self.proceso_id = self.generar_proceso_id_diario()  # ID único por día
         self.ultima_fecha_reinicio = date.today()  # Para controlar cambios de día
         
@@ -263,6 +260,7 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
             try:
                 self.serial_connection.write(b"PPPPPPPPPPPPPPPP")  # 16 'P' como señal de emergencia
                 self.agregar_notificacion("Señal de EMERGENCIA enviada a ESP32")
+                self.master_panel.liberar_bloqueo_hardware()
             except Exception as e:
                 self.agregar_notificacion(f"Error al enviar señal de emergencia: {str(e)}")
         else:
@@ -274,9 +272,6 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
         # Opcional: Mostrar mensaje emergente
         messagebox.showwarning("PARO DE EMERGENCIA", 
                             "Todos los procesos han sido detenidos por seguridad")
-        
-        # Liberar bloqueo
-        self.master_panel.liberar_bloqueo()
 
     def reiniciar_ciclico(self):
         """Reinicia todos los valores del proceso cíclico y genera nuevo proceso_id"""
@@ -293,7 +288,7 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
             ciclos_actual.configure(text="0")
             self.toggle_controles_ciclicos(i)
         
-        self.agregar_notificacion(f"Valores del proceso cíclico reiniciados") #Para checar ID = "Nuevo ID: {self.proceso_id}""
+        self.agregar_notificacion(f"Valores del proceso cíclico reiniciados")
 
     def reiniciar_puntual(self):
         """Reinicia todos los valores del proceso puntual y genera nuevo proceso_id"""
@@ -309,7 +304,7 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
             self.estados_valvulas[i] = False
             self.toggle_controles_puntuales(i)
         
-        self.agregar_notificacion(f"Valores del proceso puntual reiniciados") #Para checar ID = "Nuevo ID: {self.proceso_id}""
+        self.agregar_notificacion(f"Valores del proceso puntual reiniciados")
 
     def toggle_controles_ciclicos(self, idx):
         """Habilita/deshabilita controles según estado del switch"""
@@ -620,6 +615,11 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
     def iniciar_proceso_ciclico(self, proceso_id=None):
         """Inicia proceso cíclico usando el proceso_id diario"""
         try:
+            if not self.master_panel.verificar_ejecucion("paneldecontrol"):
+                return
+                
+            self.master_panel.activar_bloqueo_hardware("paneldecontrol")
+            
             self.verificar_cambio_dia()  # Verificar si ha cambiado el día
             
             # Usar el proceso_id diario a menos que se especifique uno diferente
@@ -632,6 +632,7 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
                 if switch.get():
                     # Verificar si la válvula está en proceso puntual
                     if self.estados_valvulas[i-1]:
+                        self.master_panel.liberar_bloqueo_hardware()
                         messagebox.showwarning("Advertencia", 
                                             f"La válvula {self.valvulas[i-1]} está en proceso puntual. Cierre el proceso puntual primero.")
                         return
@@ -641,6 +642,7 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
                     cierre_val = self.convertir_a_segundos(cierre.get(), cierre_unidad.get())
                     
                     if apertura_val > 9999 or cierre_val > 9999:
+                        self.master_panel.liberar_bloqueo_hardware()
                         messagebox.showerror("Error", f"Los tiempos para {self.valvulas[i-1]} no pueden exceder 9999 segundos (o equivalentes)")
                         return
                     
@@ -778,8 +780,14 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo iniciar el proceso puntual: {str(e)}")
 
+
     def ejecutar_valvula_puntual(self, idx, proceso_id=None):
         """Ejecuta válvula puntual usando el proceso_id diario"""
+        if not self.master_panel.verificar_ejecucion("paneldecontrol"):
+            return
+            
+        self.master_panel.activar_bloqueo_hardware("paneldecontrol")
+        
         # Usar el proceso_id diario a menos que se especifique uno diferente
         proceso_id = self.proceso_id if proceso_id is None else proceso_id
         self.verificar_cambio_dia()  # Verificar si ha cambiado el día
@@ -787,6 +795,7 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
         # Verificar si la válvula está en proceso cíclico
         switch_ciclico, _, _, _, _, _, _ = self.controles_ciclicos[idx]
         if switch_ciclico.get():
+            self.master_panel.liberar_bloqueo_hardware()
             messagebox.showwarning("Advertencia", 
                                 f"La válvula {self.valvulas[idx]} está en proceso cíclico. Detenga el proceso cíclico primero.")
             return
@@ -794,6 +803,7 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
         switch_puntual, estado, tiempo, tiempo_unidad, tiempo_transcurrido, _ = self.controles_puntuales[idx]
         
         if self.estados_valvulas[idx]:
+            self.master_panel.liberar_bloqueo_hardware()
             messagebox.showwarning("Advertencia", f"La válvula {self.valvulas[idx]} ya está abierta")
             return
             
@@ -889,11 +899,12 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
             # Si está cerrado, abrir con el tiempo configurado
             self.ejecutar_valvula_puntual(idx)
 
+
     def __del__(self):
         """Libera recursos al destruir el panel"""
         # Liberar bloqueo primero
         if hasattr(self, 'master_panel'):
-            self.master_panel.liberar_bloqueo()
+            self.master_panel.liberar_bloqueo_hardware()
         
         # Detener todos los hilos de ejecución
         for i in range(9):
