@@ -21,9 +21,10 @@ class MasterPanel(ctk.CTk):
         self.user_id = user_id
         self._imagenes = []
         self.paneles_activos = {}  # Diccionario para mantener los paneles
-        self.proceso_activo = None  # 'nuevoproceso' o 'paneldecontrol' o None
         self.lock = threading.Lock()  # Para sincronización de threads
         self.panel_actual = None  # Referencia al panel actualmente visible
+        self.bloqueo_activo = False  # Nuevo estado para rastrear bloqueo por hardware
+        self.panel_con_bloqueo = None  # Panel que activó el bloqueo
         
         self.config_window()
         self.logo = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/logocinves_predeterm.png", (400, 136))
@@ -170,27 +171,28 @@ class MasterPanel(ctk.CTk):
             except Exception as e:
                 print(f"Error al crear el cuerpo principal: {e}")
 
-    def verificar_bloqueo(self, nombre_panel):
-        """Verifica si se puede abrir el panel solicitado"""
-        if nombre_panel in ['nuevoproceso', 'paneldecontrol']:
-            with self.lock:
-                if self.proceso_activo and self.proceso_activo != nombre_panel:
-                    messagebox.showwarning(
-                        "Proceso en ejecución",
-                        f"No se puede abrir {nombre_panel} mientras hay un proceso activo en {self.proceso_activo}"
-                    )
-                    return False
-        return True
-
-    def establecer_bloqueo(self, nombre_panel):
-        """Establece el panel activo que bloquea los demás"""
+    def verificar_ejecucion(self, nombre_panel):
+        """Verifica si se puede enviar comandos a las válvulas."""
         with self.lock:
-            self.proceso_activo = nombre_panel
+            if self.bloqueo_activo and self.panel_con_bloqueo != nombre_panel:
+                messagebox.showwarning(
+                    "Hardware ocupado",
+                    f"No se pueden enviar comandos. El panel {self.panel_con_bloqueo} está controlando las válvulas."
+                )
+                return False
+            return True
 
-    def liberar_bloqueo(self):
-        """Libera el bloqueo de proceso activo"""
+    def activar_bloqueo_hardware(self, nombre_panel):
+        """Activa el bloqueo al enviar comandos a las válvulas."""
         with self.lock:
-            self.proceso_activo = None
+            self.bloqueo_activo = True
+            self.panel_con_bloqueo = nombre_panel
+
+    def liberar_bloqueo_hardware(self):
+        """Libera el bloqueo al pausar/detener/terminar procesos."""
+        with self.lock:
+            self.bloqueo_activo = False
+            self.panel_con_bloqueo = None
 
     def mostrar_panel(self, nombre):
         """Muestra un panel existente o crea uno nuevo sin destruir los existentes"""
@@ -229,14 +231,10 @@ class MasterPanel(ctk.CTk):
             self.menu_lateral.pack(side=ctk.LEFT, fill='both', expand=False)  
 
     def abrir_nuevoproceso(self):
-        if self.verificar_bloqueo("nuevoproceso"):
-            self.mostrar_panel("nuevoproceso")
-            self.establecer_bloqueo("nuevoproceso")
+        self.mostrar_panel("nuevoproceso")
 
     def abrir_paneldecontrol(self):
-        if self.verificar_bloqueo("paneldecontrol"):
-            self.mostrar_panel("paneldecontrol")
-            self.establecer_bloqueo("paneldecontrol")
+        self.mostrar_panel("paneldecontrol")
 
     def abrir_historial(self):
         self.mostrar_panel("historial")
