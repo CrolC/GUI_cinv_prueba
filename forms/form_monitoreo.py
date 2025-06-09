@@ -7,6 +7,7 @@ import threading
 import time
 from datetime import datetime
 
+#Modificar seleccion de procesos no por ID si no por fecha (opcional)
 class FormMonitoreo(ctk.CTkFrame):
     def __init__(self, panel_principal, user_id):
         super().__init__(panel_principal)
