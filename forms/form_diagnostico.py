@@ -5,6 +5,8 @@ import time
 from tkinter import messagebox
 import re
 
+##NOTA:Definir logica de funcionamiento para "Estdode del proceso" y "Modo de trabajo"
+#Modificcar diseño de semáforos para que se vean mejor
 class FormDiagnostico(ctk.CTkFrame):
     def __init__(self, panel_principal, user_id):
         super().__init__(panel_principal)
@@ -384,15 +386,6 @@ class FormDiagnostico(ctk.CTkFrame):
             self.led_amarillo_proceso.configure(fg_color="yellow")
         elif self.estado_proceso == "En ejecución":
             self.led_verde_proceso.configure(fg_color="green")
-
-    # def __del__(self):
-    #     """Cierra la conexión serial al destruir el objeto"""
-    #     self.detener_hilo.set()
-    #     if self.hilo_lectura and self.hilo_lectura.is_alive():
-    #         self.hilo_lectura.join()
-        
-    #     if self.serial_connection and self.serial_connection.is_open:
-    #         self.serial_connection.close()
 
 
     def __del__(self):
