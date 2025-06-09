@@ -112,6 +112,15 @@ class FormNuevoProceso(ctk.CTkFrame):
         )
         self.limpiar_btn.pack(side="right", padx=5, pady=(0, 5))
 
+        # Botón de paro de emergencia
+        btn_paro = ctk.CTkButton(self.notificaciones_frame, 
+                                    text="STOP EMERGENCIA", 
+                                    fg_color="red", 
+                                    hover_color="darkred",
+                                    command=self.paro_emergencia)
+        btn_paro.pack(side="right", padx=5, pady=(0,5))
+        self.pack(padx=10, pady=10, fill="both", expand=True)
+
     def agregar_notificacion(self, mensaje):
         """Agrega una notificación al panel de notificaciones"""
         self.notificaciones.append(mensaje)
@@ -541,6 +550,39 @@ class FormNuevoProceso(ctk.CTkFrame):
                         self.master_panel.activar_bloqueo_hardware("nuevoproceso")
                         self.serial_connection.write(b"YYYYYYYYYYYYYYYY") # Comando de reanudar
                         print("Comando para reanudar enviado a ESP32 = YYYYYYYYYYYYYYYY")
+
+    def paro_emergencia(self):
+        """Detiene todos los procesos y envía señal de emergencia a la ESP32"""
+        # Detener hilo de ejecución
+        if self.proceso_en_ejecucion:
+            self.proceso_en_ejecucion = False
+            if self.hilo_proceso and self.hilo_proceso.is_alive():
+                self.hilo_proceso.join(timeout=1)
+
+        # Enviar comando de emergencia
+        if self.serial_connection and self.serial_connection.is_open:
+            try:
+                self.serial_connection.write(b"PPPPPPPPPPPPPPPP")  # 16 'P'
+                self.master_panel.liberar_bloqueo_hardware()
+            except Exception as e:
+                self.agregar_notificacion(f"Error al enviar señal de emergencia: {str(e)}")
+        else:
+            self.agregar_notificacion("No hay conexión serial para enviar señal de emergencia")
+
+        # Actualizar UI
+        self.pausar_btn.configure(state="disabled", text="Pausar Rutina")
+        self.ejecutar_btn.configure(state="normal")
+
+        # Reiniciar contadores visuales
+        for fase, valvulas in self.fases_datos.items():
+            for valvula in valvulas:
+                valvula['progreso'].configure(text="0/0")
+                valvula['ciclos_completados'] = 0
+
+        # Notificación emergente
+        messagebox.showwarning("‼ PARO DE EMERGENCIA ‼", "Todos los procesos han sido detenidos por seguridad")
+        self.agregar_notificacion("🛑 ¡PARO DE EMERGENCIA ACTIVADO! Todos los procesos detenidos")
+
 
     def reiniciar_rutina(self):
         """Reinicia completamente la rutina"""
