@@ -5,8 +5,7 @@ import time
 from tkinter import messagebox
 import re
 
-##NOTA:Definir logica de funcionamiento para "Estdode del proceso" y "Modo de trabajo"
-#Modificcar diseño de semáforos para que se vean mejor
+#NOTA:Modificcar diseño de semáforos para que se vean mejor
 class FormDiagnostico(ctk.CTkFrame):
     def __init__(self, panel_principal, user_id):
         super().__init__(panel_principal)
@@ -289,14 +288,15 @@ class FormDiagnostico(ctk.CTkFrame):
                 except (ValueError, KeyError):
                     continue
         
-        # definir estados del proceso
-        if "AUTOMATICO" in mensaje:
+    
+        # Lógica para determinar el modo de proceso
+        if "&" in mensaje:  # Las instrucciones de Nuevo Proceso tienen múltiples fases separadas por &
             self.modo_proceso = "Automático"
             self.estado_proceso = "En ejecución"
-        elif "SEMIAUTOMATICO" in mensaje:
+        elif any(f"M{i}" in mensaje for i in range(1, 10)):  # Instrucciones individuales de Panel de Control
             self.modo_proceso = "Semiautomático"
             self.estado_proceso = "En ejecución"
-        elif "DETENIDO" in mensaje:
+        else:
             self.estado_proceso = "Inactivo"
         
         self.after(0, self.actualizar_estado_proceso)
