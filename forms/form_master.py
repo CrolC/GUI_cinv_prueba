@@ -26,6 +26,7 @@ class MasterPanel(ctk.CTk):
         self.bloqueo_activo = False  # Nuevo estado para rastrear bloqueo por hardware
         self.panel_con_bloqueo = None  # Panel que activó el bloqueo
         
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.config_window()
         self.logo = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/logocinves_predeterm.png", (400, 136))
         self.perfil = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/Perfil.png", (100, 100))
@@ -39,31 +40,41 @@ class MasterPanel(ctk.CTk):
     def on_close(self):
         """Maneja el cierre seguro de la ventana"""
         try:
-            # Cancelar eventos pendientes
-            for id in self.tk.eval('after info').split():
-                try:
-                    self.after_cancel(id)
-                except:
-                    pass
-        
-            # Limpiar todos los paneles activos
+            # Detener todos los procesos en los paneles
             for nombre, panel in self.paneles_activos.items():
-                if hasattr(panel, '__del__'):
-                    panel.__del__()
-                if hasattr(panel, 'destroy'):
-                    panel.destroy()
+                if hasattr(panel, 'proceso_en_ejecucion') and panel.proceso_en_ejecucion:
+                    if hasattr(panel, 'reiniciar_rutina'):
+                        panel.reiniciar_rutina()
+                    elif hasattr(panel, 'paro_emergencia'):
+                        panel.paro_emergencia()
             
-            # Liberar recursos
+            # Destruir los paneles en orden
+            for nombre, panel in list(self.paneles_activos.items()):
+                if panel.winfo_exists():
+                    try:
+                        panel.pack_forget()
+                        panel.destroy()
+                    except Exception as e:
+                        print(f"Error al destruir panel {nombre}: {e}")
+            
+            # Liberar recursos de imágenes
             if hasattr(self, '_imagenes'):
-                del self._imagenes
-        
-            # Cierre en orden
+                for img in self._imagenes:
+                    try:
+                        if hasattr(img, '_PhotoImage__photo'):
+                            img._PhotoImage__photo = None
+                    except:
+                        pass
+                self._imagenes.clear()
+            
+            # Finalizar la aplicación
             self.quit()
             self.destroy()
+            
         except Exception as e:
             print(f"Error durante el cierre: {e}")
             import os
-            os._exit(0)
+            os._exit(0)  # Fuerza la salida si hay problemas
 
     def leer_imagen(self, path, size): 
         try:
