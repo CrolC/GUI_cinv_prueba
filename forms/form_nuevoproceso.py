@@ -163,13 +163,17 @@ class FormNuevoProceso(ctk.CTkFrame):
                 print(f"- {p.device}: {p.description}")
 
             for puerto in puertos:
-                if 'USB' in puerto.description or 'Serial' in puerto.description or 'ESP' in puerto.description:
+                descripcion = puerto.description.lower()
+                if any(x in descripcion for x in ['usb', 'serial', 'esp', 'silicon', 'ch340']):
                     try:
+                        if self.serial_connection and self.serial_connection.is_open:
+                            self.serial_connection.close()
                         self.serial_connection = serial.Serial(
                             port=puerto.device,
                             baudrate=115200,
                             timeout=1
                         )
+                        time.sleep(2)  # Esperar que ESP32 reinicie
                         mensaje = f"Conectado a {puerto.device}"
                         print(mensaje)
                         self.agregar_notificacion(mensaje)
@@ -178,14 +182,16 @@ class FormNuevoProceso(ctk.CTkFrame):
                         print(f"No se pudo abrir {puerto.device}: {e}")
 
             mensaje = ("No se encontró un dispositivo ESP32.\n\n"
-                      "Verifica que esté correctamente conectada y que el driver esté instalado.")
+                    "Verifica que esté correctamente conectada y que el driver esté instalado.")
             messagebox.showerror("ESP32 no detectada", mensaje)
             self.agregar_notificacion("Error: ESP32 no detectada")
+
         except Exception as e:
             mensaje = f"No se pudo configurar el puerto serial: {str(e)}"
             messagebox.showerror("Error", mensaje)
             self.agregar_notificacion(f"Error serial: {str(e)}")
             print(f"Error al configurar el puerto serial: {e}")
+
 
     def validar_entrada(self, text):
         """Validación de entrada numérica"""
@@ -360,6 +366,7 @@ class FormNuevoProceso(ctk.CTkFrame):
             messagebox.showwarning("Advertencia", "No puedes eliminar la última fase")
             self.agregar_notificacion("Intento de eliminar la última fase (no permitido)")
 
+
     def iniciar_proceso(self):
         """Inicia el proceso de ejecución de rutina"""
         try:
@@ -420,7 +427,7 @@ class FormNuevoProceso(ctk.CTkFrame):
                 self.pausar_btn.configure(state="normal", text="Pausar Rutina")
                 self.ejecutar_btn.configure(state="disabled")
                 
-                self.hilo_proceso = threading.Thread(target=self.ejecutar_proceso, daemon=True)
+                self.hilo_proceso = threading.Thread(target=self.ejecutar_proceso, daemon=True)########
                 self.hilo_proceso.start()
                 
                 mensaje = "Proceso iniciado correctamente"
@@ -430,6 +437,96 @@ class FormNuevoProceso(ctk.CTkFrame):
             self.master_panel.liberar_bloqueo_hardware()
             messagebox.showerror("Error", f"Error al iniciar proceso: {str(e)}")
             self.agregar_notificacion(f"Error al iniciar proceso: {str(e)}")
+
+
+    def ejecutar_proceso(self):
+        """Ejecuta el proceso fase por fase"""
+        try:
+            self.agregar_notificacion("Iniciando ejecución de rutina...")
+            
+            # Iterar por cada fase
+            for fase_idx, (nombre_fase, valvulas) in enumerate(self.fases_datos.items()):
+                if not self.proceso_en_ejecucion:
+                    break
+                    
+                self.fase_actual = fase_idx
+                self.tiempo_inicio_fase = time.time()
+                fase_completada = False
+                
+                self.agregar_notificacion(f"Ejecutando {nombre_fase}...")
+                self.tabview.set(nombre_fase)  # Mostrar la fase actual
+                
+                # Ejecutar válvulas activas en esta fase
+                while not fase_completada and self.proceso_en_ejecucion:
+                    # Manejar pausa
+                    while self.proceso_pausado and self.proceso_en_ejecucion:
+                        if self.tiempo_pausa == 0:  # Primera vez que se pausa
+                            self.tiempo_pausa = time.time()
+                        time.sleep(0.1)
+                    
+                    if not self.proceso_en_ejecucion:
+                        break
+                        
+                    if self.tiempo_pausa > 0:  # Si estaba pausado, ajustar tiempo
+                        self.tiempo_inicio_fase += time.time() - self.tiempo_pausa
+                        self.tiempo_pausa = 0
+                    
+                    # Calcular tiempo transcurrido en esta fase
+                    tiempo_transcurrido_fase = time.time() - self.tiempo_inicio_fase
+                    
+                    # Verificar estado de todas las válvulas
+                    fase_completada = True
+                    for valvula_idx, valvula in enumerate(valvulas):
+                        key = f"F{fase_idx+1}V{valvula_idx+1}"
+                        if key in self.valvulas_activas:
+                            config = self.valvulas_activas[key]
+                            
+                            if config['ciclos_totales'] > 0:  # Modo cíclico
+                                ciclos_completos = min(
+                                    int(tiempo_transcurrido_fase / config['tiempo_ciclo']),
+                                    config['ciclos_totales']
+                                )
+                                
+                                if ciclos_completos > config['ciclos_completados']:
+                                    config['ciclos_completados'] = ciclos_completos
+                                    valvula['progreso'].configure(text=f"{ciclos_completos}/{config['ciclos_totales']}")
+                                    self.agregar_notificacion(f"Válvula {config['elemento']}: Ciclo {ciclos_completos}/{config['ciclos_totales']}")
+                                
+                                if config['ciclos_completados'] < config['ciclos_totales']:
+                                    fase_completada = False
+                            else:  # Modo tiempo continuo
+                                if tiempo_transcurrido_fase < config['tiempo_ciclo']:
+                                    tiempo_restante = max(0, config['tiempo_ciclo'] - tiempo_transcurrido_fase)
+                                    valvula['progreso'].configure(text=f"T: {int(tiempo_restante)}s")
+                                    fase_completada = False
+                                else:
+                                    valvula['progreso'].configure(text="Completado")
+                                    self.agregar_notificacion(f"Válvula {config['elemento']}: Tiempo completado")
+                    
+                    time.sleep(0.1)  # Pequeña pausa para no saturar CPU
+                
+                if fase_completada:
+                    self.agregar_notificacion(f"Fase {nombre_fase} completada")
+            
+            # Finalización del proceso
+            if self.proceso_en_ejecucion:
+                self.agregar_notificacion("Proceso completado exitosamente")
+                messagebox.showinfo("Éxito", "El proceso se ha completado correctamente")
+                
+            # Restablecer estado
+            self.proceso_en_ejecucion = False
+            self.pausar_btn.configure(state="disabled")
+            self.ejecutar_btn.configure(state="normal")
+            self.master_panel.liberar_bloqueo_hardware()
+            
+        except Exception as e:
+            self.proceso_en_ejecucion = False
+            self.pausar_btn.configure(state="disabled")
+            self.ejecutar_btn.configure(state="normal")
+            self.master_panel.liberar_bloqueo_hardware()
+            self.agregar_notificacion(f"Error en ejecución: {str(e)}")
+            messagebox.showerror("Error", f"Ocurrió un error durante la ejecución: {str(e)}")
+
 
     def enviar_cadena_serial(self):
         try:
@@ -463,7 +560,7 @@ class FormNuevoProceso(ctk.CTkFrame):
                         }
                         self.guardar_proceso_db(datos)
                     
-                        # Resto del código para construir la cadena serial...
+                        # Construcción de la cadena serial
                         motor = f"M{valvula_idx}"
                         direccion = valvula['dir_var'].get()
                         ciclos_val = str(ciclos).zfill(4) if ciclos else "0000"
@@ -473,14 +570,15 @@ class FormNuevoProceso(ctk.CTkFrame):
                         apertura_str = str(min(apertura_val, 9999)).zfill(4)
                         cierre_str = str(min(cierre_val, 9999)).zfill(4)
 
+                        # Lógica para determinar el tipo de tarea
                         if int(ciclos_val) > 0:
-                            tarea = "B"
-                        elif apertura_val > 0 and cierre_val > 0:
-                            tarea = "C"
-                        elif apertura_val > 0:
-                            tarea = "A"
+                            tarea = "B"  # Modo cíclico
+                        elif (apertura_val > 0):
+                            tarea = "C"  # Apertura y cierre temporizado
+                        elif (valvula['switch'].get() and apertura_val == 0):
+                            tarea = "A"  # Apertura simple (con o sin tiempo)
                         else:
-                            tarea = "E"
+                            tarea = "E"  # Error o estado desconocido
 
                         cadena = f"{motor}{tarea}{direccion}{ciclos_val}{apertura_str}{cierre_str}"
                         cadenas.append(cadena)
@@ -498,20 +596,36 @@ class FormNuevoProceso(ctk.CTkFrame):
                 
                 # Enviar por serial si hay conexión
                 if self.serial_connection and self.serial_connection.is_open:
-                    self.serial_connection.write(cadena_final.encode('utf-8'))
+                    # Enviar comando con terminación de línea
+                    self.serial_connection.write((cadena_final + '\n').encode('utf-8'))
+                    self.serial_connection.flush()  # Asegurar envío inmediato
                     print("Cadena enviada a ESP32")
                     self.agregar_notificacion("Configuración enviada")
                     
-                    # Esperar confirmación
-                    time.sleep(0.1)
-                    if self.serial_connection.in_waiting:
-                        respuesta = self.serial_connection.readline().decode('utf-8').strip()
-                        print(f"Respuesta ESP32: {respuesta}")
-                        
-                        if "OK" not in respuesta:
-                            self.master_panel.liberar_bloqueo_hardware()
-                            messagebox.showerror("Error", "El dispositivo no confirmó la recepción")
-                            return False
+                    # Esperar confirmación con timeout mejorado
+                    start_time = time.time()
+                    timeout = 2.0  # 2 segundos
+                    respuesta = ""
+                    
+                    while time.time() - start_time < timeout:
+                        if self.serial_connection.in_waiting:
+                            respuesta += self.serial_connection.read(self.serial_connection.in_waiting).decode('utf-8')
+                            if '\n' in respuesta:
+                                respuesta = respuesta.split('\n')[0].strip()
+                                break
+                        time.sleep(0.05)
+                    
+                    print(f"Respuesta ESP32: {respuesta}")
+                    
+                    #  # Verificar si todas las válvulas están cerradas en la respuesta
+                    #  if "M1C" in respuesta and "M2C" in respuesta:  # Verifica al menos las primeras
+                    #      self.master_panel.liberar_bloqueo_hardware()
+                    #      self.agregar_notificacion("Configuración recibida por ESP32")
+                    #      return True
+                    #  else:
+                    #      self.master_panel.liberar_bloqueo_hardware()
+                    #      messagebox.showerror("Error", "El dispositivo no confirmó el cierre de válvulas")
+                    #      return False
                 else:
                     self.master_panel.liberar_bloqueo_hardware()
                     messagebox.showerror("Error", "No hay conexión serial establecida")
@@ -564,6 +678,7 @@ class FormNuevoProceso(ctk.CTkFrame):
             try:
                 self.serial_connection.write(b"PPPPPPPPPPPPPPPP")  # 16 'P'
                 self.master_panel.liberar_bloqueo_hardware()
+                print("Comando de paro de emergencia enviado a ESP32 = PPPPPPPPPPPPPPPP")
             except Exception as e:
                 self.agregar_notificacion(f"Error al enviar señal de emergencia: {str(e)}")
         else:
