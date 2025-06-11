@@ -257,6 +257,7 @@ class FormDiagnostico(ctk.CTkFrame):
             else:
                 time.sleep(0.5)
 
+
     def procesar_mensaje(self, mensaje):
         """Procesa un mensaje recibido de la ESP32"""
         print(f"Mensaje recibido: {mensaje}")  # Debug
@@ -265,11 +266,17 @@ class FormDiagnostico(ctk.CTkFrame):
         self.estado_micro = "verde"
         self.after(0, self.actualizar_estado_micro)
         
-        # Expresión regular para buscar patrones M#E
+        # Procesar estado de todas las válvulas en un solo mensaje
         patron = r'M(\d+)([AC])'
         coincidencias = re.findall(patron, mensaje)
         
         if coincidencias:
+            # Primero marcamos todas las válvulas como cerradas (por si falta alguna en el mensaje)
+            for elemento in self.valvula_map.values():
+                self.valvulas_estado[elemento]['estado'] = 'C'
+                self.valvulas_estado[elemento]['tiempo'] = 0
+            
+            # Luego actualizamos las que vienen en el mensaje
             for num_valvula, estado in coincidencias:
                 try:
                     num_valvula = int(num_valvula)
@@ -277,27 +284,28 @@ class FormDiagnostico(ctk.CTkFrame):
                         elemento = self.valvula_map[num_valvula]
                         self.valvulas_estado[elemento]['estado'] = estado
                         
-                        # Si está abierta, incrementar tiempo
-                        if estado == 'A':
+                        # Si está abierta, incrementar tiempo (si ya estaba abierta)
+                        if estado == 'A' and self.valvulas_estado[elemento]['estado'] == 'A':
                             self.valvulas_estado[elemento]['tiempo'] += 1
                         else:
                             self.valvulas_estado[elemento]['tiempo'] = 0
-                        
-                        # Actualizar interfaz
-                        self.after(0, self.actualizar_estados_valvulas)
                 except (ValueError, KeyError):
                     continue
+            
+            # Actualizar interfaz
+            self.after(0, self.actualizar_estados_valvulas)
         
-    
-        # Lógica para determinar el modo de proceso
-        if "&" in mensaje:  # Las instrucciones de Nuevo Proceso tienen múltiples fases separadas por &
-            self.modo_proceso = "Automático"
-            self.estado_proceso = "En ejecución"
-        elif any(f"M{i}" in mensaje for i in range(1, 10)):  # Instrucciones individuales de Panel de Control
-            self.modo_proceso = "Semiautomático"
+        # Determinar estado del proceso
+        if any(estado == 'A' for estado in [v['estado'] for v in self.valvulas_estado.values()]):
             self.estado_proceso = "En ejecución"
         else:
             self.estado_proceso = "Inactivo"
+        
+        # Determinar modo de proceso basado en el mensaje completo
+        if "&" in mensaje:  # Mensaje con múltiples fases
+            self.modo_proceso = "Automático"
+        elif len(coincidencias) > 0:  # Mensaje con válvulas individuales
+            self.modo_proceso = "Semiautomático"
         
         self.after(0, self.actualizar_estado_proceso)
 
@@ -344,6 +352,7 @@ class FormDiagnostico(ctk.CTkFrame):
         
         self.after(0, self.actualizar_estado_micro)
 
+
     def actualizar_estados_valvulas(self):
         """Actualiza la visualización del estado de las válvulas"""
         for elemento, widgets in self.valvula_widgets.items():
@@ -357,7 +366,7 @@ class FormDiagnostico(ctk.CTkFrame):
                 widgets['led_cerrado'].configure(fg_color="gray")
             else:
                 widgets['led_abierto'].configure(fg_color="gray")
-                widgets['led_cerrado'].configure(fg_color="gray")
+                widgets['led_cerrado'].configure(fg_color="red")  
 
     def actualizar_estado_micro(self):
         """Actualiza el semáforo del microcontrolador"""
