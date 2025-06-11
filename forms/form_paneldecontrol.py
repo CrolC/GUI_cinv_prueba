@@ -25,6 +25,7 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
         self.tiempos_inicio = [None] * 9
         self.contadores_ciclos = [0] * 9
         self.hilos_ejecucion = [None] * 9
+        self.direcciones_valvulas = ["D"] * 9  # Inicialmente todas en "D"
         
         # Layout
         self.grid_columnconfigure(0, weight=1)  # Proceso Cíclico
@@ -261,6 +262,7 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
                 self.serial_connection.write(b"PPPPPPPPPPPPPPPP")  # 16 'P' como señal de emergencia
                 self.agregar_notificacion("Señal de EMERGENCIA enviada a ESP32")
                 self.master_panel.liberar_bloqueo_hardware()
+                print("comando enviado: PPPPPPPPPPPPPPPP")
             except Exception as e:
                 self.agregar_notificacion(f"Error al enviar señal de emergencia: {str(e)}")
         else:
@@ -662,10 +664,10 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
 
                     if int(ciclos_val) > 0:
                         tarea = "B"
-                    elif apertura_val > 0 and cierre_val > 0:
-                        tarea = "C"
-                    elif apertura_val > 0:
-                        tarea = "A"
+                    #elif apertura_val > 0 and cierre_val > 0:
+                    #    tarea = "C"
+                    #elif apertura_val > 0:
+                    #    tarea = "A"
                     else:
                         tarea = "E"
 
@@ -819,15 +821,23 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
         
         # Construccion cadena (para impresión)
         motor = f"M{idx+1}"
-        tarea = "A"
-        direccion = "D"
-        cadena = f"{motor}{tarea}{direccion}0000{str(segundos).zfill(4)}0000"
-        print(f"Cadena enviada a ESP32: {cadena}")
+
+        if switch_puntual.get() and segundos == 0:
+            tarea = "A"
+        elif (segundos > 0):
+            tarea = "C"
+        else:
+            tarea = "E"
+            
+        
+        direccion = self.direcciones_valvulas[idx]
+        cadenaP = f"{motor}{tarea}{direccion}0000{str(segundos).zfill(4)}0000"
+        print(f"Cadena enviada a ESP32: {cadenaP}")
 
         # Enviar por serial si está conectado
         if self.serial_connection and self.serial_connection.is_open:
             try:
-                self.serial_connection.write(cadena.encode('utf-8'))
+                self.serial_connection.write(cadenaP.encode('utf-8'))
                 print("Cadena enviada a ESP32")
                 time.sleep(0.1)
                 if self.serial_connection.in_waiting:
@@ -855,10 +865,16 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
         # Actualiza estado
         self.estados_valvulas[idx] = True
         self.tiempos_inicio[idx] = time.time()
-        estado.configure(text="ABIERTO", fg_color="green")
+        estado.configure(text="ABIERTO", fg_color="green")  # Siempre mostrar "ABIERTO" para tareas A y C
         
-        # Inicio de temporizador
-        self.actualizar_tiempo_transcurrido(idx, segundos)
+        # Inicio de temporizador solo si hay tiempo definido (tarea C)
+        if tarea == "C":
+            self.actualizar_tiempo_transcurrido(idx, segundos)
+        elif tarea == "A":
+            # Para tarea A (sin tiempo), solo mostrar "ABIERTO" sin temporizador
+            tiempo_transcurrido.configure(text="--:--")
+
+
 
     def actualizar_tiempo_transcurrido(self, idx, duracion_total):
         switch, estado, _, _, tiempo_transcurrido, _ = self.controles_puntuales[idx]
@@ -888,16 +904,27 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
             fecha_fin = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self.actualizar_proceso_db(idx, fecha_fin)
 
+
     def invertir_sentido(self, idx):
         switch, estado, _, _, _, _ = self.controles_puntuales[idx]
-        if self.estados_valvulas[idx]:
-            # Solo se puede invertir si la válvula está abierta
-            self.estados_valvulas[idx] = False
-            estado.configure(text="CERRADO", fg_color="red")
-            self.agregar_notificacion(f"Sentido de la válvula {self.valvulas[idx]} invertido (cerrado)")
-        else:
-            # Si está cerrado, abrir con el tiempo configurado
+        
+        # Alternar la dirección
+        direccion_actual = self.direcciones_valvulas[idx]
+        nueva_direccion = "I" if direccion_actual == "D" else "D"
+        self.direcciones_valvulas[idx] = nueva_direccion
+
+        # Notificación
+        self.agregar_notificacion(
+            f"Sentido de la válvula {self.valvulas[idx]} invertido a {'Izquierda' if nueva_direccion == 'I' else 'Derecha'}"
+        )
+
+        # Si la válvula está cerrada, ejecutar nuevamente con nueva dirección
+        if not self.estados_valvulas[idx]:
             self.ejecutar_valvula_puntual(idx)
+        else:
+            estado.configure(text="CERRADO", fg_color="red")
+            self.estados_valvulas[idx] = False
+
 
 
     def __del__(self):
