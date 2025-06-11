@@ -179,7 +179,7 @@ class FormMonitoreo(ctk.CTkFrame):
                 
                 # Procesar datos y actualizar gráfica
                 self.after(0, self._actualizar_grafica, datos)
-                time.sleep(2)  # Intervalo de actualización
+                time.sleep(0.1)  # Intervalo de actualización
                 
             except Exception as e:
                 print(f"Error al monitorear: {e}")
@@ -187,7 +187,7 @@ class FormMonitoreo(ctk.CTkFrame):
                     text="Estado: Error", 
                     fg_color="#dc3545"
                 ))
-                time.sleep(5)
+                time.sleep(0.5)
 
     def _actualizar_grafica(self, datos):
         """Actualiza la gráfica con nuevos datos"""
