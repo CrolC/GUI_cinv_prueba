@@ -5,31 +5,30 @@ import threading
 import time
 import sqlite3
 from datetime import datetime, date
-import serial
-import serial.tools.list_ports
 import uuid
 
 class FormPaneldeControl(ctk.CTkScrollableFrame):
     def __init__(self, panel_principal, user_id):  
         super().__init__(panel_principal)
         self.user_id = user_id
-        self.master_panel = panel_principal.master  # Acceso al MasterPanel
+        self.master_panel = panel_principal.master
         
-        self.proceso_id = self.generar_proceso_id_diario()  # ID único por día
-        self.ultima_fecha_reinicio = date.today()  # Para controlar cambios de día
+        # Improved process ID generation
+        self.proceso_id = self.generar_proceso_id_diario()
+        self.ultima_fecha_reinicio = date.today()
         
-        self.serial_connection = None
-        self.configurar_puerto_serial()
+        # Valve control variables
         self.valvulas = ["Al", "As", "Ga", "In", "N", "Mn", "Be", "Mg", "Si"]
-        self.estados_valvulas = [False] * 9  # True = abierto, False = cerrado
+        self.estados_valvulas = [False] * 9
         self.tiempos_inicio = [None] * 9
         self.contadores_ciclos = [0] * 9
         self.hilos_ejecucion = [None] * 9
-        self.direcciones_valvulas = ["D"] * 9  # Inicialmente todas en "D"
+        self.direcciones_valvulas = ["D"] * 9
+        self.stop_event = threading.Event()
         
-        # Layout
-        self.grid_columnconfigure(0, weight=1)  # Proceso Cíclico
-        self.grid_columnconfigure(1, weight=1)  # Proceso Puntual
+        # Build interface
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=0)
         self.grid_rowconfigure(1, weight=0)
         
@@ -256,17 +255,13 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
                 # Habilitar controles cíclicos
                 self.habilitar_controles_ciclicos(i)
         
-        # Envia señal de emergencia a ESP32
-        if self.serial_connection and self.serial_connection.is_open:
-            try:
-                self.serial_connection.write(b"PPPPPPPPPPPPPPPP")  # 16 'P' como señal de emergencia
-                self.agregar_notificacion("Señal de EMERGENCIA enviada a ESP32")
-                self.master_panel.liberar_bloqueo_hardware()
-                print("comando enviado: PPPPPPPPPPPPPPPP")
-            except Exception as e:
-                self.agregar_notificacion(f"Error al enviar señal de emergencia: {str(e)}")
+        # Envia señal de emergencia a ESP32 usando el MasterPanel
+        if self.master_panel.enviar_comando_serial("PPPPPPPPPPPPPPPP"):
+            self.agregar_notificacion("Señal de EMERGENCIA enviada a ESP32")
+            self.master_panel.liberar_bloqueo_hardware()
+            print("comando enviado: PPPPPPPPPPPPPPPP")
         else:
-            self.agregar_notificacion("No hay conexión serial para enviar señal de emergencia")
+            self.agregar_notificacion("Error al enviar señal de emergencia")
         
         # Registrar en notificaciones
         self.agregar_notificacion("¡PARO DE EMERGENCIA ACTIVADO! Todos los procesos detenidos")
@@ -385,27 +380,6 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
         self.notificaciones_text.insert("end", f"[{hora_actual}] {mensaje}\n")
         self.notificaciones_text.configure(state="disabled")
         self.notificaciones_text.see("end")
-
-    def configurar_puerto_serial(self):
-        """Intenta conectar automáticamente a la ESP32"""
-        try:
-            puertos = serial.tools.list_ports.comports()
-            if not puertos:
-                messagebox.showwarning("Sin conexión", "No se detectaron puertos seriales. Conecta la ESP32.")
-                return
-
-            for puerto in puertos:
-                if 'USB' in puerto.description or 'Serial' in puerto.description or 'ESP' in puerto.description:
-                    try:
-                        self.serial_connection = serial.Serial(port=puerto.device, baudrate=115200, timeout=1)
-                        print(f"Conectado a {puerto.device}")
-                        return
-                    except Exception as e:
-                        print(f"No se pudo abrir {puerto.device}: {e}")
-
-            messagebox.showerror("ESP32 no detectada", "No se encontró un dispositivo ESP32 conectado.")
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo configurar el puerto serial: {str(e)}")
 
     def validar_entrada(self, text):
         if text == "":
@@ -664,10 +638,6 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
 
                     if int(ciclos_val) > 0:
                         tarea = "B"
-                    #elif apertura_val > 0 and cierre_val > 0:
-                    #    tarea = "C"
-                    #elif apertura_val > 0:
-                    #    tarea = "A"
                     else:
                         tarea = "E"
 
@@ -700,71 +670,67 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
             if cadenas:
                 cadena_final = "".join(cadenas)
                 print(f"Cadena a enviar: {cadena_final}")
-                # Enviar por serial si está conectado
-                if self.serial_connection and self.serial_connection.is_open:
-                    try:
-                        self.serial_connection.write(cadena_final.encode('utf-8'))
-                        print("Cadena enviada a ESP32...")
-                        time.sleep(0.1)
-                        if self.serial_connection.in_waiting:
-                            respuesta = self.serial_connection.readline().decode('utf-8').strip()
-                            print(f"Respuesta ESP32: {respuesta}")
-                            if "OK" not in respuesta:
-                                messagebox.showwarning("Atención", "La ESP32 no confirmó la recepción de la cadena")
-                    except Exception as e:
-                        messagebox.showerror("Error", f"No se pudo enviar la cadena: {str(e)}")
-                        return
+                
+                # Enviar por serial usando el MasterPanel
+                if self.master_panel.enviar_comando_serial(cadena_final):
+                    print("Cadena enviada a ESP32...")
+                    self.agregar_notificacion(f"Proceso cíclico iniciado")
                 else:
-                    messagebox.showerror("Error", "No hay conexión serial establecida con la ESP32")
-                    return
-
-                self.agregar_notificacion(f"Proceso cíclico iniciado") #Para ver ID = "con ID: {proceso_id}""
+                    messagebox.showerror("Error", "No se pudo enviar el comando a la ESP32")
             else:
                 messagebox.showwarning("Advertencia", "No hay válvulas activadas para ejecutar")
                 
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo iniciar el proceso: {str(e)}")
 
+
     def ejecutar_ciclos(self, idx, tiempo_apertura, tiempo_cierre, ciclos_deseados):
+        """Execute valve cycles with thread safety"""
         switch, _, _, _, _, _, ciclos_actual = self.controles_ciclicos[idx]
         
         ciclos = 0
         try:
-            while getattr(threading.current_thread(), "do_run", True) and (ciclos_deseados == 0 or ciclos < ciclos_deseados):
-                # Apertura (con chequeo periódico)
+            while not self.stop_event.is_set() and (ciclos_deseados == 0 or ciclos < ciclos_deseados):
+                # Aperture phase
                 inicio = time.time()
-                while time.time() - inicio < tiempo_apertura and getattr(threading.current_thread(), "do_run", True):
-                    time.sleep(0.1)  # Checa cada 100ms
+                while (time.time() - inicio < tiempo_apertura and 
+                       not self.stop_event.is_set()):
+                    time.sleep(0.1)
                 
-                if not getattr(threading.current_thread(), "do_run", True):
+                if self.stop_event.is_set():
                     break
                     
-                # Cierre (con chequeo periódico)
+                # Close phase
                 inicio = time.time()
-                while time.time() - inicio < tiempo_cierre and getattr(threading.current_thread(), "do_run", True):
-                    time.sleep(0.1)  # Checa cada 100ms
+                while (time.time() - inicio < tiempo_cierre and 
+                       not self.stop_event.is_set()):
+                    time.sleep(0.1)
                 
-                if not getattr(threading.current_thread(), "do_run", True):
+                if self.stop_event.is_set():
                     break
                     
                 ciclos += 1
                 self.after(0, lambda: ciclos_actual.configure(text=str(ciclos)))
             
-                
-            # Habilitar controles puntuales cuando termina
-            self.after(0, lambda: self.habilitar_controles_puntuales(idx))
+            # Finalization
+            self.after(0, self.habilitar_controles_puntuales, idx)
             
-            # Notificación cuando finaliza
             if ciclos_deseados > 0 and ciclos >= ciclos_deseados:
                 self.after(0, lambda: self.agregar_notificacion(
-                    f"Válvula {self.valvulas[idx]} ha completado {ciclos_deseados} ciclos"))
+                    f"Válvula {self.valvulas[idx]} ha completado {ciclos_deseados} ciclos"
+                ))
                 
-            # Actualizar base de datos con fecha de finalización
+            # Update database
             fecha_fin = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            self.actualizar_proceso_db(idx, fecha_fin, ciclos)
+            self.after(0, self.actualizar_proceso_db, idx, fecha_fin, ciclos)
             
         except Exception as e:
-            self.after(0, lambda: messagebox.showerror("Error", f"Error en válvula {self.valvulas[idx]}: {str(e)}"))
+            self.after(0, lambda: messagebox.showerror(
+                "Error", 
+                f"Error en válvula {self.valvulas[idx]}: {str(e)}"
+            ))
+            
+
 
     def iniciar_proceso_puntual(self):
         """Inicia proceso puntual para todas las válvulas activadas"""
@@ -777,7 +743,7 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
                 if switch.get():
                     self.ejecutar_valvula_puntual(i, proceso_id)
             
-            self.agregar_notificacion(f"Proceso puntual simultáneo iniciado") #Para ver ID = "con ID: {proceso_id}"
+            self.agregar_notificacion(f"Proceso puntual simultáneo iniciado")
                 
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo iniciar el proceso puntual: {str(e)}")
@@ -834,18 +800,10 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
         cadenaP = f"{motor}{tarea}{direccion}0000{str(segundos).zfill(4)}0000"
         print(f"Cadena enviada a ESP32: {cadenaP}")
 
-        # Enviar por serial si está conectado
-        if self.serial_connection and self.serial_connection.is_open:
-            try:
-                self.serial_connection.write(cadenaP.encode('utf-8'))
-                print("Cadena enviada a ESP32")
-                time.sleep(0.1)
-                if self.serial_connection.in_waiting:
-                    respuesta = self.serial_connection.readline().decode('utf-8').strip()
-                    print(f"Respuesta ESP32: {respuesta}")
-            except Exception as e:
-                messagebox.showerror("Error", f"No se pudo enviar la cadena: {str(e)}")
-
+        # Enviar por serial usando el MasterPanel
+        if not self.master_panel.enviar_comando_serial(cadenaP):
+            messagebox.showerror("Error", "No se pudo enviar el comando")
+            return
         
         # Guardar en DB
         fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -873,7 +831,6 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
         elif tarea == "A":
             # Para tarea A (sin tiempo), solo mostrar "ABIERTO" sin temporizador
             tiempo_transcurrido.configure(text="--:--")
-
 
 
     def actualizar_tiempo_transcurrido(self, idx, duracion_total):
@@ -925,21 +882,20 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
             estado.configure(text="CERRADO", fg_color="red")
             self.estados_valvulas[idx] = False
 
-
-
     def __del__(self):
         """Libera recursos al destruir el panel"""
-        # Liberar bloqueo primero
-        if hasattr(self, 'master_panel'):
-            self.master_panel.liberar_bloqueo_hardware()
-        
-        # Detener todos los hilos de ejecución
-        for i in range(9):
-            if hasattr(self, 'hilos_ejecucion') and self.hilos_ejecucion[i] and self.hilos_ejecucion[i].is_alive():
-                self.hilos_ejecucion[i].do_run = False
-        
-        # Cerrar conexión serial
-        if hasattr(self, 'serial_connection') and self.serial_connection and self.serial_connection.is_open:
-            self.serial_connection.close()
-            print("Conexión serial cerrada en PaneldeControl")
-        
+        try:
+            self.stop_event.set()
+            
+            # Stop all threads
+            for i in range(9):
+                if (hasattr(self, 'hilos_ejecucion') and 
+                    self.hilos_ejecucion[i] and 
+                    self.hilos_ejecucion[i].is_alive()):
+                    self.hilos_ejecucion[i].join(timeout=1)
+            
+            # Release hardware lock
+            if hasattr(self, 'master_panel'):
+                self.master_panel.liberar_bloqueo_hardware()
+        except Exception as e:
+            print(f"Error en limpieza de PaneldeControl: {e}")
