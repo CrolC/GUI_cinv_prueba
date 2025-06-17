@@ -7,11 +7,11 @@ import threading
 import time
 from datetime import datetime
 
-#Modificar seleccion de procesos no por ID si no por fecha (opcional)
 class FormMonitoreo(ctk.CTkFrame):
     def __init__(self, panel_principal, user_id):
         super().__init__(panel_principal)
         self.user_id = user_id
+        self.master_panel = panel_principal.master  # Acceso al MasterPanel
         self.configure(fg_color="#f4f8f7")
         
         # Variables de estado
@@ -248,8 +248,11 @@ class FormMonitoreo(ctk.CTkFrame):
 
     def __del__(self):
         """Limpia recursos al destruir el panel"""
-        self.detener_monitoreo.set()
-        if hasattr(self, 'fig'):
-            plt.close(self.fig)
-        if hasattr(self, '_hilo_monitoreo') and self._hilo_monitoreo.is_alive():
-            self._hilo_monitoreo.join(timeout=1)
+        try:
+            self.detener_monitoreo.set()
+            if hasattr(self, '_hilo_monitoreo') and self._hilo_monitoreo is not None and self._hilo_monitoreo.is_alive():
+                self._hilo_monitoreo.join(timeout=1)
+            if hasattr(self, 'fig'):
+                plt.close(self.fig)
+        except Exception as e:
+            print(f"Error en limpieza de Monitoreo: {e}")
