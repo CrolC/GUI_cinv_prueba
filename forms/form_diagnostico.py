@@ -1,16 +1,14 @@
 import customtkinter as ctk
-import serial.tools.list_ports
 import threading
 import time
 from tkinter import messagebox
 import re
 
-#NOTA:Modificcar diseño de semáforos para que se vean mejor
 class FormDiagnostico(ctk.CTkFrame):
     def __init__(self, panel_principal, user_id):
         super().__init__(panel_principal)
         self.user_id = user_id
-        self.serial_connection = None
+        self.master_panel = panel_principal.master  # Acceso al MasterPanel
         self.configure(fg_color="#f4f8f7")
         self.pack(fill="both", expand=True, padx=10, pady=10)
         
@@ -32,15 +30,13 @@ class FormDiagnostico(ctk.CTkFrame):
         self.modo_proceso = "Inactivo"
         self.estado_proceso = "Inactivo"
         self.valvulas_estado = {elemento: {'estado': 'C', 'tiempo': 0} for elemento in self.valvula_map.values()}
-        self.hilo_lectura = None
         self.detener_hilo = threading.Event()
         
         # Configurar interfaz
         self._crear_interfaz()
         
-        # Iniciar monitoreo
-        self.iniciar_monitoreo()
-
+        # Registrar este panel para recibir mensajes seriales
+        self.master_panel.registrar_panel_serial("diagnostico", self)
 
     def _crear_interfaz(self):
         """Crea la interfaz con los tres frames principales"""
@@ -223,41 +219,6 @@ class FormDiagnostico(ctk.CTkFrame):
             command=self.actualizar_estado_proceso
         ).pack(pady=10)
 
-    def iniciar_monitoreo(self):
-        """Inicia el hilo de monitoreo serial"""
-        if self.hilo_lectura and self.hilo_lectura.is_alive():
-            self.detener_hilo.set()
-            self.hilo_lectura.join()
-        
-        self.detener_hilo.clear()
-        self.hilo_lectura = threading.Thread(target=self.leer_serial, daemon=True)
-        self.hilo_lectura.start()
-
-    def leer_serial(self):
-        """Lee constantemente el puerto serial para actualizar estados"""
-        buffer = ""
-        while not self.detener_hilo.is_set():
-            if self.serial_connection and self.serial_connection.is_open:
-                try:
-                    # Leer datos disponibles
-                    data = self.serial_connection.read(self.serial_connection.in_waiting or 1).decode('utf-8')
-                    if data:
-                        buffer += data
-                        
-                        # Procesar mensajes completos (terminados con \n)
-                        while '\n' in buffer:
-                            linea, buffer = buffer.split('\n', 1)
-                            self.procesar_mensaje(linea.strip())
-                            
-                except Exception as e:
-                    print(f"Error lectura serial: {e}")
-                    self.estado_micro = "rojo"
-                    self.after(0, self.actualizar_estado_micro)
-                    time.sleep(1)
-            else:
-                time.sleep(0.5)
-
-
     def procesar_mensaje(self, mensaje):
         """Procesa un mensaje recibido de la ESP32"""
         print(f"Mensaje recibido: {mensaje}")  # Debug
@@ -310,48 +271,15 @@ class FormDiagnostico(ctk.CTkFrame):
         self.after(0, self.actualizar_estado_proceso)
 
     def probar_conexion(self):
-        """Intenta establecer conexión con la ESP32 y configurar lectura"""
-        try:
-            puertos = serial.tools.list_ports.comports()
-            if not puertos:
-                self.estado_micro = "rojo"
-                messagebox.showwarning("Sin conexión", "No se detectaron puertos seriales.")
-            else:
-                for puerto in puertos:
-                    if 'USB' in puerto.description or 'Serial' in puerto.description or 'ESP' in puerto.description:
-                        try:
-                            # Cerrar conexión existente
-                            if self.serial_connection and self.serial_connection.is_open:
-                                self.serial_connection.close()
-                            
-                            # Nueva conexión
-                            self.serial_connection = serial.Serial(
-                                port=puerto.device,
-                                baudrate=115200,
-                                timeout=1
-                            )
-                            self.estado_micro = "amarillo"
-                            self.after(0, self.actualizar_estado_micro)
-                            
-                            # Iniciar hilo de lectura
-                            self.iniciar_monitoreo()
-                            
-                            # Enviar comando de solicitud de estado
-                            self.serial_connection.write(b"ESTADO?\n")
-                            
-                            return
-                        except Exception as e:
-                            print(f"No se pudo abrir {puerto.device}: {e}")
-                            self.estado_micro = "rojo"
-                else:
-                    self.estado_micro = "rojo"
-                    messagebox.showerror("Error", "No se encontró un dispositivo ESP32 conectado.")
-        except Exception as e:
+        """Intenta establecer conexión con la ESP32"""
+        if self.master_panel.enviar_comando_serial("ESTADO?"):
+            self.estado_micro = "amarillo"
+            self.after(0, self.actualizar_estado_micro)
+            messagebox.showinfo("Conexión", "Solicitud de estado enviada al microcontrolador")
+        else:
             self.estado_micro = "rojo"
-            messagebox.showerror("Error", f"No se pudo configurar el puerto serial: {str(e)}")
-        
-        self.after(0, self.actualizar_estado_micro)
-
+            self.after(0, self.actualizar_estado_micro)
+            messagebox.showerror("Error", "No se pudo enviar la solicitud de estado")
 
     def actualizar_estados_valvulas(self):
         """Actualiza la visualización del estado de las válvulas"""
@@ -398,11 +326,11 @@ class FormDiagnostico(ctk.CTkFrame):
 
 
     def __del__(self):
-        """Cierra la conexión serial y detiene hilos al destruir el objeto"""
-        self.detener_hilo.set()
-        if hasattr(self, 'hilo_lectura') and self.hilo_lectura and self.hilo_lectura.is_alive():
-            self.hilo_lectura.join(timeout=1)
-        
-        if hasattr(self, 'serial_connection') and self.serial_connection and self.serial_connection.is_open:
-            self.serial_connection.close()
-            print("Conexión serial cerrada en Diagnostico")
+        """Limpia recursos al destruir el objeto"""
+        try:
+            self.detener_hilo.set()
+            # Desregistrar este panel para dejar de recibir mensajes seriales
+            if hasattr(self, 'master_panel') and hasattr(self.master_panel, 'desregistrar_panel_serial'):
+                self.master_panel.desregistrar_panel_serial("diagnostico")
+        except Exception as e:
+            print(f"Error en limpieza de Diagnóstico: {e}")
