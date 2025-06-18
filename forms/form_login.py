@@ -175,6 +175,8 @@ class App:
                                command=self.mostrar_ventana_registro, fg_color="#06918A")
         registro.pack(pady=10, padx=20, fill="x")
 
+        self.ventana.bind("<Return>", lambda event: self.verificar())#enter para iniciar sesión
+
 if __name__ == "__main__":
     app = App()
     app.ventana.mainloop()
