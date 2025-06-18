@@ -291,7 +291,7 @@ class MasterPanel(ctk.CTk):
                         
                         self.serial_connection = serial.Serial(
                             port=puerto.device,
-                            baudrate=115200,
+                            baudrate=9600,#115200
                             timeout=self.serial_timeout,
                             write_timeout=self.serial_timeout
                         )
@@ -482,5 +482,5 @@ class MasterPanel(ctk.CTk):
             print(f"Error en limpieza de MasterPanel: {e}")
 
 if __name__ == "__main__":
-    app = MasterPanel(user_id=1)  
+    app = MasterPanel()  
     app.mainloop()
