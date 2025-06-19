@@ -332,6 +332,26 @@ class FormNuevoProceso(ctk.CTkFrame):
                     return
                 self.master_panel.activar_bloqueo_hardware("nuevoproceso")
                 
+                # Generar ID de proceso consistente (fecha + hora)
+                self.proceso_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                
+                # Guardar información inicial en DB
+                datos_iniciales = {
+                    'proceso_id': self.proceso_id,
+                    'fecha_inicio': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    'fecha_fin': '',
+                    'hora_instruccion': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    'valvula': "Inicio de proceso complejo",
+                    'tiempo': 0,
+                    'ciclos': 0,
+                    'estado': 'A',  # Abierto/Activo
+                    'fase': 0,
+                    'tipo_proceso': 'complejo'
+                }
+                if not self.guardar_proceso_db(datos_iniciales):
+                    messagebox.showerror("Error", "No se pudo guardar el registro inicial en la base de datos")
+                    return
+                
                 # Preparar datos de válvulas activas
                 self.valvulas_activas = {}
                 valvulas_configuradas = False
@@ -345,6 +365,20 @@ class FormNuevoProceso(ctk.CTkFrame):
                                 
                                 if tiempo > 0:
                                     valvulas_configuradas = True
+                                    # Guardar cada válvula activa en la DB
+                                    datos_valvula = {
+                                        'proceso_id': self.proceso_id,
+                                        'fecha_inicio': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                        'hora_instruccion': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                        'valvula': f"Válvula {valvula['elemento']}",
+                                        'tiempo': tiempo,
+                                        'ciclos': ciclos,
+                                        'estado': 'A',
+                                        'fase': fase_idx + 1,
+                                        'tipo_proceso': 'cíclico' if ciclos > 0 else 'puntual'
+                                    }
+                                    self.guardar_proceso_db(datos_valvula)
+                                    
                                     key = f"F{fase_idx+1}V{valvula_idx+1}"
                                     self.valvulas_activas[key] = {
                                         'fase': fase_idx,
@@ -356,6 +390,7 @@ class FormNuevoProceso(ctk.CTkFrame):
                                         'progreso': valvula['progreso'],
                                         'elemento': valvula['elemento']
                                     }
+                                    
                                     if ciclos > 0:
                                         valvula['progreso'].configure(text=f"0/{ciclos}")
                                         self.agregar_notificacion(f"Válvula {valvula['elemento']} en {nombre_fase}: {ciclos} ciclos configurados")
@@ -365,7 +400,7 @@ class FormNuevoProceso(ctk.CTkFrame):
                             except Exception as e:
                                 print(f"Error al procesar válvula: {e}")
                                 pass
-            
+                
                 if not valvulas_configuradas:
                     mensaje = "Debe configurar al menos una válvula con tiempo de apertura válido"
                     messagebox.showwarning("Advertencia", mensaje)
@@ -395,7 +430,7 @@ class FormNuevoProceso(ctk.CTkFrame):
             self.agregar_notificacion(f"Error al iniciar proceso: {str(e)}")
 
     def ejecutar_proceso(self):
-        """Ejecuta el proceso fase por fase"""
+        """Ejecuta el proceso fase por fase y registra todo en la base de datos"""
         try:
             self.agregar_notificacion("Iniciando ejecución de rutina...")
             
@@ -411,32 +446,71 @@ class FormNuevoProceso(ctk.CTkFrame):
                 self.agregar_notificacion(f"Ejecutando {nombre_fase}...")
                 self.tabview.set(nombre_fase)  # Mostrar la fase actual
                 
+                # Registrar inicio de fase en la base de datos
+                datos_fase = {
+                    'proceso_id': self.proceso_id,
+                    'fecha_inicio': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    'fecha_fin': '',
+                    'hora_instruccion': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    'valvula': f"Inicio fase",  # Modificado: texto simplificado
+                    'tiempo': 0,
+                    'ciclos': 0,
+                    'estado': 'A',
+                    'fase': fase_idx + 1,
+                    'tipo_proceso': 'complejo'
+                }
+                self.guardar_proceso_db(datos_fase)
+                
                 # Ejecutar válvulas activas en esta fase
                 while not fase_completada and self.proceso_en_ejecucion:
                     # Manejar pausa
                     while self.proceso_pausado and self.proceso_en_ejecucion:
-                        if self.tiempo_pausa == 0:  # Primera vez que se pausa
+                        if self.tiempo_pausa == 0:
                             self.tiempo_pausa = time.time()
+                            datos_pausa = {
+                                'proceso_id': self.proceso_id,
+                                'fecha_inicio': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                'fecha_fin': '',
+                                'hora_instruccion': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                'valvula': "Pausa",  # Modificado: texto simplificado
+                                'tiempo': 0,
+                                'ciclos': 0,
+                                'estado': 'P',
+                                'fase': fase_idx + 1,
+                                'tipo_proceso': 'complejo'
+                            }
+                            self.guardar_proceso_db(datos_pausa)
                         time.sleep(0.1)
                     
                     if not self.proceso_en_ejecucion:
                         break
                         
-                    if self.tiempo_pausa > 0:  # Si estaba pausado, ajustar tiempo
+                    if self.tiempo_pausa > 0:
                         self.tiempo_inicio_fase += time.time() - self.tiempo_pausa
                         self.tiempo_pausa = 0
+                        datos_reanudar = {
+                            'proceso_id': self.proceso_id,
+                            'fecha_inicio': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            'fecha_fin': '',
+                            'hora_instruccion': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            'valvula': "Reanudar",  # Modificado: texto simplificado
+                            'tiempo': 0,
+                            'ciclos': 0,
+                            'estado': 'R',
+                            'fase': fase_idx + 1,
+                            'tipo_proceso': 'complejo'
+                        }
+                        self.guardar_proceso_db(datos_reanudar)
                     
-                    # Calcular tiempo transcurrido en esta fase
                     tiempo_transcurrido_fase = time.time() - self.tiempo_inicio_fase
-                    
-                    # Verificar estado de todas las válvulas
                     fase_completada = True
+                    
                     for valvula_idx, valvula in enumerate(valvulas):
                         key = f"F{fase_idx+1}V{valvula_idx+1}"
                         if key in self.valvulas_activas:
                             config = self.valvulas_activas[key]
                             
-                            if config['ciclos_totales'] > 0:  # Modo cíclico
+                            if config['ciclos_totales'] > 0:
                                 ciclos_completos = min(
                                     int(tiempo_transcurrido_fase / config['tiempo_ciclo']),
                                     config['ciclos_totales']
@@ -446,10 +520,24 @@ class FormNuevoProceso(ctk.CTkFrame):
                                     config['ciclos_completados'] = ciclos_completos
                                     valvula['progreso'].configure(text=f"{ciclos_completos}/{config['ciclos_totales']}")
                                     self.agregar_notificacion(f"Válvula {config['elemento']}: Ciclo {ciclos_completos}/{config['ciclos_totales']}")
+                                    
+                                    datos_ciclo = {
+                                        'proceso_id': self.proceso_id,
+                                        'fecha_inicio': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                        'fecha_fin': '',
+                                        'hora_instruccion': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                        'valvula': config['elemento'],  # Solo el nombre del elemento
+                                        'tiempo': config['tiempo_ciclo'],
+                                        'ciclos': ciclos_completos,
+                                        'estado': 'A',
+                                        'fase': fase_idx + 1,
+                                        'tipo_proceso': 'cíclico'
+                                    }
+                                    self.guardar_proceso_db(datos_ciclo)
                                 
                                 if config['ciclos_completados'] < config['ciclos_totales']:
                                     fase_completada = False
-                            else:  # Modo tiempo continuo
+                            else:
                                 if tiempo_transcurrido_fase < config['tiempo_ciclo']:
                                     tiempo_restante = max(0, config['tiempo_ciclo'] - tiempo_transcurrido_fase)
                                     valvula['progreso'].configure(text=f"T: {int(tiempo_restante)}s")
@@ -457,31 +545,137 @@ class FormNuevoProceso(ctk.CTkFrame):
                                 else:
                                     valvula['progreso'].configure(text="Completado")
                                     self.agregar_notificacion(f"Válvula {config['elemento']}: Tiempo completado")
+                                    
+                                    datos_fin_valvula = {
+                                        'proceso_id': self.proceso_id,
+                                        'fecha_inicio': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                        'fecha_fin': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                        'hora_instruccion': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                        'valvula': config['elemento'],  # Solo el nombre del elemento
+                                        'tiempo': config['tiempo_ciclo'],
+                                        'ciclos': 0,
+                                        'estado': 'C',
+                                        'fase': fase_idx + 1,
+                                        'tipo_proceso': 'puntual'
+                                    }
+                                    self.guardar_proceso_db(datos_fin_valvula)
                     
-                    time.sleep(0.1)  # Pequeña pausa para no saturar CPU
+                    time.sleep(0.1)
                 
                 if fase_completada:
                     self.agregar_notificacion(f"Fase {nombre_fase} completada")
+                    datos_fin_fase = {
+                        'proceso_id': self.proceso_id,
+                        'fecha_inicio': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        'fecha_fin': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        'hora_instruccion': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        'valvula': "Fin fase",  # Modificado: texto simplificado
+                        'tiempo': 0,
+                        'ciclos': 0,
+                        'estado': 'C',
+                        'fase': fase_idx + 1,
+                        'tipo_proceso': 'complejo'
+                    }
+                    self.guardar_proceso_db(datos_fin_fase)
             
-            # Finalización del proceso
             if self.proceso_en_ejecucion:
                 self.agregar_notificacion("Proceso completado exitosamente")
                 messagebox.showinfo("Éxito", "El proceso se ha completado correctamente")
                 
-            # Restablecer estado
+                fecha_fin = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                conn = sqlite3.connect("procesos.db")
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE procesos 
+                    SET fecha_fin=?, estado_valvula='C'
+                    WHERE proceso_id=? AND fecha_fin=''
+                """, (fecha_fin, self.proceso_id))
+                
+                datos_fin_proceso = {
+                    'proceso_id': self.proceso_id,
+                    'fecha_inicio': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    'fecha_fin': fecha_fin,
+                    'hora_instruccion': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    'valvula': "Fin proceso",  # Modificado: texto simplificado
+                    'tiempo': 0,
+                    'ciclos': 0,
+                    'estado': 'C',
+                    'fase': 999,
+                    'tipo_proceso': 'complejo'
+                }
+                
+                cursor.execute('''INSERT INTO procesos 
+                    (user_id, proceso_id, fecha_inicio, fecha_fin, hora_instruccion, 
+                        valvula_activada, tiempo_valvula, ciclos, estado_valvula, fase, tipo_proceso)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                    (self.user_id,
+                    datos_fin_proceso['proceso_id'],
+                    datos_fin_proceso['fecha_inicio'],
+                    datos_fin_proceso['fecha_fin'],
+                    datos_fin_proceso['hora_instruccion'],
+                    datos_fin_proceso['valvula'],
+                    datos_fin_proceso['tiempo'],
+                    datos_fin_proceso['ciclos'],
+                    datos_fin_proceso['estado'],
+                    datos_fin_proceso['fase'],
+                    datos_fin_proceso['tipo_proceso']))
+                
+                conn.commit()
+                conn.close()
+            
             self.proceso_en_ejecucion = False
             self.pausar_btn.configure(state="disabled")
             self.ejecutar_btn.configure(state="normal")
             self.master_panel.liberar_bloqueo_hardware()
             
         except Exception as e:
+            fecha_fin = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            conn = sqlite3.connect("procesos.db")
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE procesos 
+                SET fecha_fin=?, estado_valvula='E'
+                WHERE proceso_id=? AND fecha_fin=''
+            """, (fecha_fin, self.proceso_id))
+            
+            datos_error = {
+                'proceso_id': self.proceso_id,
+                'fecha_inicio': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'fecha_fin': fecha_fin,
+                'hora_instruccion': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'valvula': "Error",  # Modificado: texto simplificado
+                'tiempo': 0,
+                'ciclos': 0,
+                'estado': 'E',
+                'fase': 999,
+                'tipo_proceso': 'complejo'
+            }
+            
+            cursor.execute('''INSERT INTO procesos 
+                (user_id, proceso_id, fecha_inicio, fecha_fin, hora_instruccion, 
+                    valvula_activada, tiempo_valvula, ciclos, estado_valvula, fase, tipo_proceso)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (self.user_id,
+                datos_error['proceso_id'],
+                datos_error['fecha_inicio'],
+                datos_error['fecha_fin'],
+                datos_error['hora_instruccion'],
+                datos_error['valvula'],
+                datos_error['tiempo'],
+                datos_error['ciclos'],
+                datos_error['estado'],
+                datos_error['fase'],
+                datos_error['tipo_proceso']))
+            
+            conn.commit()
+            conn.close()
+            
             self.proceso_en_ejecucion = False
             self.pausar_btn.configure(state="disabled")
             self.ejecutar_btn.configure(state="normal")
             self.master_panel.liberar_bloqueo_hardware()
             self.agregar_notificacion(f"Error en ejecución: {str(e)}")
             messagebox.showerror("Error", f"Ocurrió un error durante la ejecución: {str(e)}")
-
 
     def enviar_cadena_serial(self):
         """Send command to ESP32 with validation"""
