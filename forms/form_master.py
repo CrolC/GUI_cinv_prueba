@@ -1,10 +1,12 @@
 import customtkinter as ctk
-from PIL import Image
+from PIL import Image, ImageDraw, ImageOps, ImageTk
+import sqlite3
 import sys
 import threading
 import time
 import serial
 import serial.tools.list_ports
+import tkinter.filedialog as filedialog
 from tkinter import messagebox
 sys.path.append('d:/Python_Proyectos/INTER_C3')
 from forms.form_nuevoproceso import FormNuevoProceso
@@ -28,21 +30,29 @@ class MasterPanel(ctk.CTk):
         self.panel_actual = None
         self.bloqueo_activo = False
         self.panel_con_bloqueo = None
-        self.paneles_serial = {}  # Dictionary for serial message receivers
+        self.paneles_serial = {}  # Diccionario para almacenar paneles que reciben mensajes seriales
         
-        # Serial connection settings
+        # Conexión serial
         self.serial_connection = None
         self.serial_lock = threading.Lock()
         self.serial_thread = None
         self.serial_running = False
         self.serial_buffer = ""
         self.serial_timeout = 2
-        self.max_command_length = 128
+        self.max_command_length = 1500
         
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.config_window()
         self.logo = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/logocinves_predeterm.png", (400, 400))
-        self.perfil = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/Perfil.png", (100, 100))
+
+
+        # Cargar imagen de perfil si existe
+        self.perfil_path = self.obtener_ruta_perfil()
+        if self.perfil_path:
+            self.perfil = self.leer_imagen_circular(self.perfil_path, (100, 100))
+        else:
+            # Imagen por defecto
+            self.perfil = self.leer_imagen_circular("d:/Python_Proyectos/INTER_C3/imagenes/Perfil.png", (100, 100))
         
         self.paneles()
         self.controles_barra_superior()
@@ -50,6 +60,17 @@ class MasterPanel(ctk.CTk):
         self.controles_cuerpo()
         
         self.after(100, self.iniciar_conexion_serial_async)
+
+    def obtener_ruta_perfil(self):
+        try:
+            conn = sqlite3.connect("usuarios.db")
+            cursor = conn.cursor()
+            cursor.execute("SELECT imagen_perfil FROM usuarios WHERE id=?", (self.user_id,))
+            resultado = cursor.fetchone()
+            conn.close()
+            return resultado[0] if resultado and resultado[0] else None
+        except:
+            return None
 
     def leer_imagen(self, path, size):
         try:
@@ -67,6 +88,51 @@ class MasterPanel(ctk.CTk):
                 self._imagenes = []
             self._imagenes.append(placeholder)
             return placeholder
+
+    def leer_imagen_circular(self, path, size):
+        """Carga una imagen y la recorta en forma circular con bordes suaves"""
+        try:
+            from PIL import Image, ImageDraw, ImageOps, ImageFilter
+
+            # Tamaño para el supersampling (4x más grande para antialiasing)
+            supersample_size = (size[0] * 4, size[1] * 4)
+            
+            # Abrir imagen y redimensionar con antialiasing
+            pil_image = Image.open(path).convert("RGBA")
+            pil_image = pil_image.resize(supersample_size, Image.LANCZOS)
+
+            # Crear máscara circular en alta resolución
+            mask = Image.new('L', supersample_size, 0)
+            draw = ImageDraw.Draw(mask)
+            draw.ellipse((0, 0, *supersample_size), fill=255)  # Círculo en alta resolución
+
+            # Reducir la máscara para suavizar bordes
+            mask = mask.resize(size, Image.LANCZOS)
+
+            # Ligero desenfoque al borde (1 píxel)
+            mask = mask.filter(ImageFilter.GaussianBlur(radius=0.7))
+
+            # Aplicar máscara a la imagen (ya redimensionada al tamaño final)
+            pil_image = pil_image.resize(size, Image.LANCZOS)
+            output = Image.new("RGBA", size)
+            output.paste(pil_image, (0, 0), mask)
+
+            # Convertir a CTkImage
+            image = ctk.CTkImage(output, size=size)
+            
+            # Guardar referencia para evitar garbage collection
+            if not hasattr(self, '_imagenes'):
+                self._imagenes = []
+            self._imagenes.append(image)
+            
+            return image
+        except Exception as e:
+            print(f"Error al cargar imagen circular: {e}")
+            # Placeholder circular con bordes suaves
+            placeholder = Image.new('RGBA', size, (200, 200, 200, 0))
+            draw = ImageDraw.Draw(placeholder)
+            draw.ellipse((0, 0, *size), fill=(200, 200, 200, 255))
+            return ctk.CTkImage(placeholder, size=size)
 
     def config_window(self):
         self.title('Cinvestav')
@@ -112,6 +178,7 @@ class MasterPanel(ctk.CTk):
                                     text_color="white", font=ctk.CTkFont(family="Roboto", size=10))
         self.labelInfo.pack(side=ctk.RIGHT, padx=10, pady=10)
 
+
     def controles_menu_lateral(self):
         ancho_menu = 20
         alto_menu = 2
@@ -119,12 +186,25 @@ class MasterPanel(ctk.CTk):
         
         try:
             if hasattr(self, 'perfil') and self.perfil:
-                self.labelPerfil = ctk.CTkLabel(self.menu_lateral, image=self.perfil, text="", 
-                                              fg_color=COLOR_MENU_LATERAL)
+                
+                self.labelPerfil = ctk.CTkButton(
+                    self.menu_lateral, 
+                    image=self.perfil, 
+                    text="", 
+                    fg_color=COLOR_MENU_LATERAL,
+                    hover_color=COLOR_MENU_CURSOR_ENCIMA,
+                    command=self.cambiar_foto_perfil  
+                )
             else:
-                self.labelPerfil = ctk.CTkLabel(self.menu_lateral, text="Perfil", 
-                                              fg_color=COLOR_MENU_LATERAL)
+                self.labelPerfil = ctk.CTkButton(
+                    self.menu_lateral, 
+                    text="Click para\ncambiar foto", 
+                    fg_color=COLOR_MENU_LATERAL,
+                    hover_color=COLOR_MENU_CURSOR_ENCIMA,
+                    command=self.cambiar_foto_perfil
+                )
             self.labelPerfil.pack(side=ctk.TOP, pady=10)
+
         except Exception as e:
             print(f"Error al crear label de perfil: {e}")
             self.labelPerfil = ctk.CTkLabel(self.menu_lateral, text="Perfil", 
@@ -153,6 +233,32 @@ class MasterPanel(ctk.CTk):
             )
             button.pack(side=ctk.TOP, fill="x", padx=5, pady=5)
             self.menu_buttons[key] = button
+
+
+    def cambiar_foto_perfil(self):
+        filepath = filedialog.askopenfilename(
+            title="Seleccionar imagen de perfil",
+            filetypes=[("Imágenes", "*.png *.jpg *.jpeg"), ("Todos los archivos", "*.*")]
+        )
+        
+        if filepath:
+            try:
+                # Guardar en la base de datos
+                conn = sqlite3.connect("usuarios.db")
+                cursor = conn.cursor()
+                cursor.execute("UPDATE usuarios SET imagen_perfil=? WHERE id=?", 
+                            (filepath, self.user_id))
+                conn.commit()
+                conn.close()
+                
+                # Actualizar la imagen en la interfaz
+                nuevo_perfil = self.leer_imagen(filepath, (100, 100))
+                self.perfil = nuevo_perfil
+                self.labelPerfil.configure(image=self.perfil)
+                
+                messagebox.showinfo("Éxito", "Foto de perfil actualizada correctamente")
+            except Exception as e:
+                messagebox.showerror("Error", f"No se pudo actualizar la foto: {str(e)}")
 
     def actualizar_boton_activo(self, boton_key):
         for key, button in self.menu_buttons.items():
