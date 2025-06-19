@@ -14,7 +14,8 @@ def inicializar_base_datos():
     cursor.execute('''CREATE TABLE IF NOT EXISTS usuarios (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     usuario TEXT NOT NULL UNIQUE,
-                    password TEXT NOT NULL)''')
+                    password TEXT NOT NULL,
+                    imagen_perfil TEXT)''')
     
     # Actualizar procesos.db con la columna user_id
     conn_procesos = sqlite3.connect("procesos.db")
