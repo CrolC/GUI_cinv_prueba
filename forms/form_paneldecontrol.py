@@ -230,45 +230,59 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
             self.agregar_notificacion(f"Nuevo ID de proceso generado para el día: {self.proceso_id}")
 
     def paro_emergencia(self):
-        """Detiene todos los procesos y envía señal de emergencia a la ESP32"""
-        # Detener todos los procesos cíclicos
+        """Detiene todos los procesos y limpia los campos"""
+        # Activar evento de paro
+        self.stop_event.set()
+        
+        # Detener procesos cíclicos
         for i in range(9):
             if self.hilos_ejecucion[i] and self.hilos_ejecucion[i].is_alive():
                 self.hilos_ejecucion[i].do_run = False
+                try:
+                    self.hilos_ejecucion[i].join(timeout=0.5)
+                except:
+                    pass
                 self.hilos_ejecucion[i] = None
-                
-                # Resetear contadores
-                _, _, _, _, _, _, ciclos_actual = self.controles_ciclicos[i]
-                ciclos_actual.configure(text="0")
-                
-                # Habilitar controles
-                self.habilitar_controles_puntuales(i)
+            
+            # Reiniciar contadores
+            _, _, _, _, _, _, ciclos_actual = self.controles_ciclicos[i]
+            ciclos_actual.configure(text="0")
+            self.contadores_ciclos[i] = 0
+            
+            # Desactivar switches y limpiar campos (proceso cíclico)
+            switch, apertura, apertura_unidad, cierre, cierre_unidad, ciclos_deseados, _ = self.controles_ciclicos[i]
+            switch.deselect()
+            apertura.delete(0, "end")
+            apertura_unidad.set("s")
+            cierre.delete(0, "end")
+            cierre_unidad.set("s")
+            ciclos_deseados.delete(0, "end")
+            self.toggle_controles_ciclicos(i)  # Desactiva campos asociados
         
         # Detener procesos puntuales
         for i in range(9):
             if self.estados_valvulas[i]:
                 self.estados_valvulas[i] = False
-                _, estado, _, _, tiempo_transcurrido, _ = self.controles_puntuales[i]
+                switch, estado, tiempo, tiempo_unidad, tiempo_transcurrido, _ = self.controles_puntuales[i]
+                switch.deselect()
                 estado.configure(text="CERRADO", fg_color="red")
+                tiempo.delete(0, "end")
+                tiempo_unidad.set("s")
                 tiempo_transcurrido.configure(text="00:00")
-                
-                # Habilitar controles cíclicos
-                self.habilitar_controles_ciclicos(i)
+                self.toggle_controles_puntuales(i)  # Desactiva campos asociados
         
-        # Envia señal de emergencia a ESP32 usando el MasterPanel
+        # Enviar señal de emergencia a ESP32
         if self.master_panel.enviar_comando_serial("PPPPPPPPPPPPPPPP"):
-            self.agregar_notificacion("Señal de EMERGENCIA enviada a ESP32")
-            self.master_panel.liberar_bloqueo_hardware()
-            print("comando enviado: PPPPPPPPPPPPPPPP")
-        else:
-            self.agregar_notificacion("Error al enviar señal de emergencia")
+            self.agregar_notificacion("¡PARO DE EMERGENCIA ACTIVADO!")
         
-        # Registrar en notificaciones
-        self.agregar_notificacion("¡PARO DE EMERGENCIA ACTIVADO! Todos los procesos detenidos")
+        # Mostrar confirmación
+        messagebox.showwarning("PARO DE EMERGENCIA", "Todos los procesos han sido detenidos.")
         
-        # Opcional: Mostrar mensaje emergente
-        messagebox.showwarning("PARO DE EMERGENCIA", 
-                            "Todos los procesos han sido detenidos por seguridad")
+        # Liberar bloqueo de hardware
+        self.master_panel.liberar_bloqueo_hardware()
+        
+        # Resetear el evento de paro para futuras ejecuciones
+        self.stop_event.clear()
 
     def reiniciar_ciclico(self):
         """Reinicia todos los valores del proceso cíclico y genera nuevo proceso_id"""
@@ -691,19 +705,23 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
         ciclos = 0
         try:
             while not self.stop_event.is_set() and (ciclos_deseados == 0 or ciclos < ciclos_deseados):
-                # Aperture phase
+                # Verificar paro de emergencia antes de cada fase
+                if self.stop_event.is_set():
+                    break
+                    
+                # Abrir fase
                 inicio = time.time()
                 while (time.time() - inicio < tiempo_apertura and 
-                       not self.stop_event.is_set()):
+                    not self.stop_event.is_set()):
                     time.sleep(0.1)
                 
                 if self.stop_event.is_set():
                     break
                     
-                # Close phase
+                # Cerrar fase
                 inicio = time.time()
                 while (time.time() - inicio < tiempo_cierre and 
-                       not self.stop_event.is_set()):
+                    not self.stop_event.is_set()):
                     time.sleep(0.1)
                 
                 if self.stop_event.is_set():
@@ -712,25 +730,31 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
                 ciclos += 1
                 self.after(0, lambda: ciclos_actual.configure(text=str(ciclos)))
             
-            # Finalization
+            # Finalizacion
             self.after(0, self.habilitar_controles_puntuales, idx)
             
-            if ciclos_deseados > 0 and ciclos >= ciclos_deseados:
+            if not self.stop_event.is_set() and ciclos_deseados > 0 and ciclos >= ciclos_deseados:
                 self.after(0, lambda: self.agregar_notificacion(
                     f"Válvula {self.valvulas[idx]} ha completado {ciclos_deseados} ciclos"
                 ))
                 
-            # Update database
-            fecha_fin = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            self.after(0, self.actualizar_proceso_db, idx, fecha_fin, ciclos)
-            
+            # Actualizar proceso en DB
+            if not self.stop_event.is_set():
+                fecha_fin = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                self.after(0, self.actualizar_proceso_db, idx, fecha_fin, ciclos)
+            else:
+                # En caso de paro de emergencia, registrar como interrumpido
+                fecha_fin = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                self.after(0, self.actualizar_proceso_db, idx, fecha_fin, ciclos)
+                self.after(0, lambda: self.agregar_notificacion(
+                    f"Válvula {self.valvulas[idx]} detenida por emergencia en ciclo {ciclos}"
+                ))
+                
         except Exception as e:
             self.after(0, lambda: messagebox.showerror(
                 "Error", 
                 f"Error en válvula {self.valvulas[idx]}: {str(e)}"
             ))
-            
-
 
     def iniciar_proceso_puntual(self):
         """Inicia proceso puntual para todas las válvulas activadas"""
