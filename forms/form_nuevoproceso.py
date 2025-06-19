@@ -133,15 +133,22 @@ class FormNuevoProceso(ctk.CTkFrame):
         self.notificaciones_text.delete("1.0", "end")
         self.notificaciones_text.configure(state="disabled")
 
+
     def toggle_campos_valvula(self, switch, campos):
         """Habilita/deshabilita campos según estado del switch"""
         estado = switch.get()
         for campo in campos:
             if campo is not None:
-                if hasattr(campo, 'configure'):
+                if isinstance(campo, ctk.CTkEntry):  # Solo para campos de entrada de texto
+                    if estado:
+                        # Habilitado - fondo blanco
+                        campo.configure(state="normal", fg_color="#ffffff")
+                    else:
+                        # Deshabilitado - fondo gris
+                        campo.configure(state="disabled", fg_color="#e0e0e0")
+                elif hasattr(campo, 'configure'):
+                    # Otros controles CTk (switches, option menus) se mantienen igual
                     campo.configure(state="normal" if estado else "disabled")
-                elif hasattr(campo, 'config'):
-                    campo.config(state="normal" if estado else "disabled")
 
     def validar_entrada(self, text):
         """Validación de entrada numérica"""
@@ -223,7 +230,7 @@ class FormNuevoProceso(ctk.CTkFrame):
             apertura_frame = ctk.CTkFrame(fila)
             apertura_frame.pack(side="left", padx=5)
             apertura = ctk.CTkEntry(apertura_frame, width=50, validate="key", 
-                                validatecommand=(self.validar_cmd, "%P"), state="disabled")
+                                validatecommand=(self.validar_cmd, "%P"), state="disabled", fg_color="#e0e0e0")
             apertura.pack(side="left")
             apertura_unidad = ctk.CTkOptionMenu(apertura_frame, values=["s", "min", "h"], width=50, state="disabled")
             apertura_unidad.set("s")
@@ -237,7 +244,7 @@ class FormNuevoProceso(ctk.CTkFrame):
             cierre_frame = ctk.CTkFrame(fila)
             cierre_frame.pack(side="left", padx=5)
             cierre = ctk.CTkEntry(cierre_frame, width=50, validate="key", 
-                                validatecommand=(self.validar_cmd, "%P"), state="disabled")
+                                validatecommand=(self.validar_cmd, "%P"), state="disabled", fg_color="#e0e0e0")
             cierre.pack(side="left")
             cierre_unidad = ctk.CTkOptionMenu(cierre_frame, values=["s", "min", "h"], width=50, state="disabled")
             cierre_unidad.set("s")
@@ -249,7 +256,7 @@ class FormNuevoProceso(ctk.CTkFrame):
 
             # Config de ciclos
             ciclos = ctk.CTkEntry(fila, width=60, validate="key", 
-                                validatecommand=(self.validar_cmd, "%P"), state="disabled")
+                                validatecommand=(self.validar_cmd, "%P"), state="disabled", fg_color="#e0e0e0")
             ciclos.pack(side="left", padx=5)
 
             # Config de dirección
