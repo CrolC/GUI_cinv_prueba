@@ -66,7 +66,7 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
             # Apertura
             apertura_frame = ctk.CTkFrame(frame_control, fg_color="transparent")
             apertura_frame.pack(side="left", padx=5)
-            apertura = ctk.CTkEntry(apertura_frame, width=50, validate="key", validatecommand=(self.validar_cmd, "%P"), state="disabled")
+            apertura = ctk.CTkEntry(apertura_frame, width=50, validate="key", validatecommand=(self.validar_cmd, "%P"), state="disabled", fg_color="#e0e0e0")
             apertura.pack(side="left")
             apertura_unidad = ctk.CTkOptionMenu(apertura_frame, values=["s", "min", "h"], width=50, state="disabled")
             apertura_unidad.set("s")
@@ -77,7 +77,7 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
             # Cierre
             cierre_frame = ctk.CTkFrame(frame_control, fg_color="transparent")
             cierre_frame.pack(side="left", padx=5)
-            cierre = ctk.CTkEntry(cierre_frame, width=50, validate="key", validatecommand=(self.validar_cmd, "%P"), state="disabled")
+            cierre = ctk.CTkEntry(cierre_frame, width=50, validate="key", validatecommand=(self.validar_cmd, "%P"), state="disabled", fg_color="#e0e0e0")
             cierre.pack(side="left")
             cierre_unidad = ctk.CTkOptionMenu(cierre_frame, values=["s", "min", "h"], width=50, state="disabled")
             cierre_unidad.set("s")
@@ -86,7 +86,7 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
             cierre_unidad.configure(command=lambda v, ent=cierre, unidad=cierre_unidad: self.validar_tiempo(ent, unidad))
             
             # Ciclos deseados
-            ciclos_deseados = ctk.CTkEntry(frame_control, width=60, validate="key", validatecommand=(self.validar_cmd, "%P"), state="disabled")
+            ciclos_deseados = ctk.CTkEntry(frame_control, width=60, validate="key", validatecommand=(self.validar_cmd, "%P"), state="disabled", fg_color="#e0e0e0")
             ciclos_deseados.pack(side="left", padx=5)
             
             # Ciclos actuales
@@ -160,7 +160,7 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
             tiempo_frame = ctk.CTkFrame(frame_control, width=col_widths['tiempo'], fg_color="transparent")
             tiempo_frame.grid(row=0, column=3, padx=5)
             
-            tiempo = ctk.CTkEntry(tiempo_frame, width=50, validate="key", validatecommand=(self.validar_cmd, "%P"), state="disabled")
+            tiempo = ctk.CTkEntry(tiempo_frame, width=50, validate="key", validatecommand=(self.validar_cmd, "%P"), state="disabled", fg_color="#e0e0e0")
             tiempo.pack(side="left", padx=(0,5))
             tiempo_unidad = ctk.CTkOptionMenu(tiempo_frame, values=["s", "min", "h"], width=50, state="disabled")
             tiempo_unidad.set("s")
@@ -317,6 +317,7 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
         
         self.agregar_notificacion(f"Valores del proceso puntual reiniciados")
 
+
     def toggle_controles_ciclicos(self, idx):
         """Habilita/deshabilita controles según estado del switch"""
         switch_ciclico, apertura, apertura_unidad, cierre, cierre_unidad, ciclos_deseados, _ = self.controles_ciclicos[idx]
@@ -333,23 +334,23 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
             # Deshabilitar switch puntual
             switch_puntual.configure(state="disabled")
             
-            # Habilitar controles cíclicos
-            apertura.configure(state="normal")
+            # Habilitar controles cíclicos (fondo blanco)
+            apertura.configure(state="normal", fg_color="#ffffff")
             apertura_unidad.configure(state="normal")
-            cierre.configure(state="normal")
+            cierre.configure(state="normal", fg_color="#ffffff")
             cierre_unidad.configure(state="normal")
-            ciclos_deseados.configure(state="normal")
+            ciclos_deseados.configure(state="normal", fg_color="#ffffff")
         else:
             # Habilitar switch puntual si no está en ejecución
             if not self.estados_valvulas[idx]:
                 switch_puntual.configure(state="normal")
             
-            # Deshabilitar controles cíclicos
-            apertura.configure(state="disabled")
+            # Deshabilitar controles cíclicos (fondo gris)
+            apertura.configure(state="disabled", fg_color="#e0e0e0")
             apertura_unidad.configure(state="disabled")
-            cierre.configure(state="disabled")
+            cierre.configure(state="disabled", fg_color="#e0e0e0")
             cierre_unidad.configure(state="disabled")
-            ciclos_deseados.configure(state="disabled")
+            ciclos_deseados.configure(state="disabled", fg_color="#e0e0e0")
 
     def toggle_controles_puntuales(self, idx):
         """Habilita/deshabilita controles según estado del switch"""
@@ -367,8 +368,8 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
             # Deshabilitar switch cíclico
             switch_ciclico.configure(state="disabled")
             
-            # Habilitar controles puntuales
-            tiempo.configure(state="normal")
+            # Habilitar controles puntuales (fondo blanco)
+            tiempo.configure(state="normal", fg_color="#ffffff")
             tiempo_unidad.configure(state="normal")
             btn_invertir.configure(state="normal")
         else:
@@ -376,8 +377,8 @@ class FormPaneldeControl(ctk.CTkScrollableFrame):
             if not switch_ciclico.get():
                 switch_ciclico.configure(state="normal")
             
-            # Deshabilitar controles puntuales
-            tiempo.configure(state="disabled")
+            # Deshabilitar controles puntuales (fondo gris)
+            tiempo.configure(state="disabled", fg_color="#e0e0e0")
             tiempo_unidad.configure(state="disabled")
             btn_invertir.configure(state="disabled")
 
