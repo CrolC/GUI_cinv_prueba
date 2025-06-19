@@ -73,30 +73,31 @@ class FormHistorial(ctk.CTkFrame):
         self._configurar_treeview()
         self.cargar_historial()
 
+
     def _configurar_treeview(self):
         """Configura el Treeview con las columnas solicitadas"""
         style = ttk.Style()
         style.theme_use("default")
         style.configure("Treeview",
-                       background="#ffffff",
-                       foreground="black",
-                       rowheight=25,
-                       fieldbackground="#ffffff",
-                       font=('Arial', 10),
-                       borderwidth=0)
+                    background="#ffffff",
+                    foreground="black",
+                    rowheight=25,
+                    fieldbackground="#ffffff",
+                    font=('Arial', 10),
+                    borderwidth=0)
         style.configure("Treeview.Heading",
-                       background="#06918A",
-                       foreground="white",
-                       font=('Arial', 11, 'bold'),
-                       padding=5)
+                    background="#06918A",
+                    foreground="white",
+                    font=('Arial', 11, 'bold'),
+                    padding=5)
         style.map("Treeview",
-                 background=[('selected', '#007bff')],
-                 foreground=[('selected', 'white')])
+                background=[('selected', '#007bff')],
+                foreground=[('selected', 'white')])
         
         self.treeview = ttk.Treeview(
             self.tree_frame,
             columns=("fecha_inicio", "hora_inicio", "hora_fin", 
-                    "valvula", "ciclos", "fase", "tipo_proceso", "proceso_id"),
+                    "valvula", "tiempo_valvula", "ciclos", "fase", "tipo_proceso", "proceso_id"),
             show="headings",
             selectmode="browse"
         )
@@ -106,10 +107,11 @@ class FormHistorial(ctk.CTkFrame):
             ("hora_inicio", "Hora Inicio", 100),
             ("hora_fin", "Hora Fin", 100),
             ("valvula", "Válvula", 120),
-            ("ciclos", "Ciclos", 80),
-            ("fase", "Fase", 60),
+            ("tiempo_valvula", "Tiempo (s)", 80),
+            ("ciclos", "Ciclos", 60),
+            ("fase", "Fase", 80),
             ("tipo_proceso", "Tipo Proceso", 120),
-            ("proceso_id", "ID Proceso", 80)
+            ("proceso_id", "ID Proceso", 100)
         ]
         
         for col, text, width in columnas:
@@ -127,13 +129,14 @@ class FormHistorial(ctk.CTkFrame):
         self.scrollbar.pack(side="right", fill="y")
 
     def cargar_historial(self):
-        """Carga los datos con los campos solicitados y formato específico"""
+        """Carga los datos individuales de cada válvula en el historial"""
         try:
             self.treeview.delete(*self.treeview.get_children())
             
             conn = sqlite3.connect("procesos.db")
             cursor = conn.cursor()
             
+            # Consulta para obtener todos los registros individuales de válvulas
             cursor.execute("""
                 SELECT 
                     substr(fecha_inicio, 1, 10) as fecha_inicio,
@@ -142,21 +145,46 @@ class FormHistorial(ctk.CTkFrame):
                         WHEN fecha_fin = '' THEN 'En progreso'
                         ELSE substr(fecha_fin, 12, 8)
                     END as hora_fin,
-                    valvula_activada as valvula,
+                    CASE 
+                        WHEN valvula_activada LIKE 'Válvula %' THEN 
+                            substr(valvula_activada, 9)  -- Extrae solo el nombre del elemento
+                        ELSE valvula_activada
+                    END as valvula,
+                    tiempo_valvula,
                     ciclos,
                     fase,
                     tipo_proceso,
                     proceso_id
                 FROM procesos 
-                WHERE user_id=?
+                WHERE user_id=? 
                 ORDER BY fecha_inicio DESC, hora_instruccion DESC
             """, (self.user_id,))
             
             registros = cursor.fetchall()
             conn.close()
             
+            # Mostrar cada registro individual en el Treeview
             for registro in registros:
-                self.treeview.insert("", "end", values=registro)
+                # Formatear el tiempo de la válvula
+                tiempo_formateado = f"{registro[4]}s" if registro[4] > 0 else "Puntual"
+                
+                # Formatear ciclos
+                ciclos_formateados = registro[5] if registro[5] > 0 else "-"
+                
+                # Crear tupla con los valores formateados
+                registro_formateado = (
+                    registro[0],  # fecha_inicio
+                    registro[1],  # hora_inicio
+                    registro[2],  # hora_fin
+                    registro[3],  # valvula (solo nombre del elemento)
+                    tiempo_formateado,  # tiempo_valvula
+                    ciclos_formateados,  # ciclos
+                    registro[6],  # fase
+                    registro[7],  # tipo_proceso
+                    registro[8]   # proceso_id
+                )
+                
+                self.treeview.insert("", "end", values=registro_formateado)
                 
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo cargar el historial:\n{str(e)}")
