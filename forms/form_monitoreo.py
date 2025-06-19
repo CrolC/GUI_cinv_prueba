@@ -23,14 +23,14 @@ class FormMonitoreo(ctk.CTkFrame):
         self.detener_monitoreo = threading.Event()
         self._hilo_monitoreo = None
         
-        # Variables para la animación de crecimiento
-        self.capas_crecimiento = []
+        # Variables para la animación de crecimiento por fases
+        self.fases_crecimiento = {}  # Diccionario para almacenar datos por fase
         self.tiempo_inicio_proceso = None
         self.ultima_actualizacion = 0
         self.estado_valvulas = {elemento: {'estado': 'C', 'tiempo': 0} 
                                for elemento in ['Al', 'As', 'Ga', 'In', 'N', 'Mn', 'Be', 'Mg', 'Si']}
         
-        # Configurar interfaz
+        # Configurar interfaz simplificada
         self._crear_interfaz()
         
         # Registrar este panel para recibir mensajes seriales
@@ -40,19 +40,19 @@ class FormMonitoreo(ctk.CTkFrame):
         self.iniciar_monitoreo()
 
     def _crear_interfaz(self):
-        """Crea la interfaz del panel de monitoreo con gráficas de estado y crecimiento"""
+        """Crea la interfaz simplificada del panel de monitoreo con solo la gráfica de crecimiento"""
         # Configurar grid principal
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=1)
         
-        # Frame de controles
+        # Frame para controles superiores
         self.controles_frame = ctk.CTkFrame(self)
         self.controles_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
         
         # Título
         ctk.CTkLabel(
             self.controles_frame,
-            text="MONITOREO DE PROCESOS",
+            text="MONITOREO DE CRECIMIENTO POR FASES",
             font=ctk.CTkFont(size=16, weight="bold")
         ).pack(side="left", padx=10)
         
@@ -74,58 +74,24 @@ class FormMonitoreo(ctk.CTkFrame):
             command=self._actualizar_lista_procesos
         ).pack(side="left", padx=5)
         
-        # Indicador de estado
-        self.estado_label = ctk.CTkLabel(
-            self.controles_frame,
-            text="Estado: Inactivo",
-            fg_color="#6c757d",
-            corner_radius=5,
-            width=120
-        )
-        self.estado_label.pack(side="right", padx=10)
+        # Frame para la gráfica de crecimiento
+        self.grafica_frame = ctk.CTkFrame(self)
+        self.grafica_frame.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="nsew")
+        self.grid_rowconfigure(1, weight=1)
         
-        # Frame para las gráficas
-        self.graficas_frame = ctk.CTkFrame(self)
-        self.graficas_frame.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="nsew")
-        self.graficas_frame.grid_columnconfigure(0, weight=1)
-        self.graficas_frame.grid_rowconfigure(0, weight=1)
-        self.graficas_frame.grid_rowconfigure(1, weight=1)
-        
-        # Gráfica de estados de válvulas
-        self.fig_estados = Figure(figsize=(10, 4), dpi=100)
-        self.ax_estados = self.fig_estados.add_subplot(111)
-        self.canvas_estados = FigureCanvasTkAgg(self.fig_estados, master=self.graficas_frame)
-        self.canvas_estados.get_tk_widget().grid(row=0, column=0, sticky="nsew", pady=(0, 5))
-        
-        # Gráfica de crecimiento de capas
-        self.fig_crecimiento = Figure(figsize=(10, 4), dpi=100)
+        # Gráfica de crecimiento de capas por fases
+        self.fig_crecimiento = Figure(figsize=(10, 6), dpi=100)
         self.ax_crecimiento = self.fig_crecimiento.add_subplot(111)
-        self.canvas_crecimiento = FigureCanvasTkAgg(self.fig_crecimiento, master=self.graficas_frame)
-        self.canvas_crecimiento.get_tk_widget().grid(row=1, column=0, sticky="nsew", pady=(5, 0))
+        self.canvas_crecimiento = FigureCanvasTkAgg(self.fig_crecimiento, master=self.grafica_frame)
+        self.canvas_crecimiento.get_tk_widget().pack(fill="both", expand=True)
         
-        # Configurar gráficas iniciales
-        self._configurar_grafica_estados_inicial()
+        # Configurar gráfica inicial
         self._configurar_grafica_crecimiento_inicial()
-
-    def _configurar_grafica_estados_inicial(self):
-        """Configura la gráfica de estados con estado inicial"""
-        self.ax_estados.clear()
-        self.ax_estados.set_title("ESTADO DE VÁLVULAS", pad=10)
-        self.ax_estados.set_xlabel("Tiempo (segundos)", labelpad=10)
-        self.ax_estados.set_ylabel("Válvula", labelpad=10)
-        self.ax_estados.grid(True, linestyle='--', alpha=0.7)
-        self.ax_estados.text(0.5, 0.5, 'Seleccione un proceso para monitorear', 
-                           horizontalalignment='center',
-                           verticalalignment='center',
-                           transform=self.ax_estados.transAxes,
-                           fontsize=12,
-                           color='gray')
-        self.canvas_estados.draw()
 
     def _configurar_grafica_crecimiento_inicial(self):
         """Configura la gráfica de crecimiento con estado inicial"""
         self.ax_crecimiento.clear()
-        self.ax_crecimiento.set_title("CRECIMIENTO DE CAPAS", pad=10)
+        self.ax_crecimiento.set_title("CRECIMIENTO POR FASES", pad=10, fontsize=14, weight='bold')
         self.ax_crecimiento.set_xlabel("Tiempo (segundos)", labelpad=10)
         self.ax_crecimiento.set_ylabel("Espesor (u.a.)", labelpad=10)
         self.ax_crecimiento.grid(True, linestyle='--', alpha=0.7)
@@ -133,7 +99,7 @@ class FormMonitoreo(ctk.CTkFrame):
         # Mostrar estructura inicial vacía
         self.ax_crecimiento.set_xlim(0, 100)
         self.ax_crecimiento.set_ylim(0, 10)
-        self.ax_crecimiento.text(0.5, 0.5, 'Esperando datos de crecimiento...', 
+        self.ax_crecimiento.text(0.5, 0.5, 'Seleccione un proceso para monitorear', 
                                horizontalalignment='center',
                                verticalalignment='center',
                                transform=self.ax_crecimiento.transAxes,
@@ -160,7 +126,6 @@ class FormMonitoreo(ctk.CTkFrame):
 
     def _actualizar_lista_procesos(self):
         """Actualiza la lista de procesos en el combobox"""
-        self.estado_label.configure(text="Estado: Actualizando...", fg_color="#17a2b8")
         procesos = self._obtener_procesos_activos()
         current = self.proceso_combobox.get()
         
@@ -168,24 +133,19 @@ class FormMonitoreo(ctk.CTkFrame):
         
         if current not in procesos:
             self.proceso_combobox.set(procesos[0] if procesos else "-- Seleccione --")
-            self._configurar_grafica_estados_inicial()
             self._configurar_grafica_crecimiento_inicial()
-        
-        self.estado_label.configure(text="Estado: Listo", fg_color="#28a745")
 
     def _cambiar_proceso_monitoreado(self, choice):
         """Cambia el proceso que se está monitoreando"""
         if choice in ["-- Seleccione --", "-- Error --"]:
-            self._configurar_grafica_estados_inicial()
             self._configurar_grafica_crecimiento_inicial()
-            self.estado_label.configure(text="Estado: Inactivo", fg_color="#6c757d")
             return
             
         self.proceso_activo = choice
         self.detener_monitoreo.set()  # Detener cualquier monitoreo previo
         
         # Reiniciar variables de crecimiento
-        self.capas_crecimiento = []
+        self.fases_crecimiento = {}
         self.tiempo_inicio_proceso = None
         self.ultima_actualizacion = 0
         
@@ -194,7 +154,6 @@ class FormMonitoreo(ctk.CTkFrame):
         
         # Reiniciar monitoreo
         self.detener_monitoreo.clear()
-        self.estado_label.configure(text="Estado: Monitoreando...", fg_color="#007bff")
         
         if not self._hilo_monitoreo or not self._hilo_monitoreo.is_alive():
             self._hilo_monitoreo = threading.Thread(
@@ -204,7 +163,7 @@ class FormMonitoreo(ctk.CTkFrame):
             self._hilo_monitoreo.start()
 
     def _monitorear_proceso(self):
-        """Monitorea el proceso seleccionado"""
+        """Monitorea el proceso seleccionado y actualiza las fases"""
         while not self.detener_monitoreo.is_set() and self.proceso_activo:
             try:
                 conn = sqlite3.connect("procesos.db")
@@ -215,7 +174,8 @@ class FormMonitoreo(ctk.CTkFrame):
                         estado_valvula, 
                         tiempo_valvula,
                         hora_instruccion,
-                        tipo_proceso
+                        tipo_proceso,
+                        fase
                     FROM procesos 
                     WHERE proceso_id=?
                     ORDER BY hora_instruccion ASC
@@ -224,218 +184,161 @@ class FormMonitoreo(ctk.CTkFrame):
                 datos = cursor.fetchall()
                 conn.close()
                 
-                # Procesar datos y actualizar gráficas
-                self.after(0, self._actualizar_grafica, datos)
-                time.sleep(0.1)  # Intervalo de actualización
+                # Procesar datos y agrupar por fases
+                self.after(0, self._procesar_datos_por_fase, datos)
+                time.sleep(1)  # Intervalo de actualización más largo para reducir carga
                 
             except Exception as e:
                 print(f"Error al monitorear: {e}")
-                self.after(0, lambda: self.estado_label.configure(
-                    text="Estado: Error", 
-                    fg_color="#dc3545"
-                ))
-                time.sleep(0.5)
+                time.sleep(2)
 
-    def procesar_mensaje(self, mensaje):
-        """Procesa un mensaje recibido de la ESP32 para actualizar el estado de las válvulas"""
-        # Procesar estado de todas las válvulas en un solo mensaje
-        patron = r'M(\d+)([AC])'
-        coincidencias = re.findall(patron, mensaje)
-        
-        if coincidencias:
-            # Actualizar estados de válvulas
-            for num_valvula, estado in coincidencias:
-                    num_valvula = int(num_valvula)
-                    if 1 <= num_valvula <= 9:
-                        elemento = ['Al', 'As', 'Ga', 'In', 'N', 'Mn', 'Be', 'Mg', 'Si'][num_valvula-1]
-                        self.estado_valvulas[elemento]['estado'] = estado
-                        
-                        # Si está abierta, incrementar tiempo (si ya estaba abierta)
-                        if estado == 'A' and self.estado_valvulas[elemento]['estado'] == 'A':
-                            self.estado_valvulas[elemento]['tiempo'] += 1
-                        else:
-                            self.estado_valvulas[elemento]['tiempo'] = 0
-            
-            # Actualizar animación de crecimiento
-            self.actualizar_animacion_crecimiento()
-
-    def actualizar_animacion_crecimiento(self):
-        """Actualiza la animación de crecimiento de capas basada en el estado actual de las válvulas"""
-        if not self.proceso_activo:
+    def _procesar_datos_por_fase(self, datos):
+        """Procesa los datos y los agrupa por fases para la animación"""
+        if not datos:
             return
             
+        # Obtener información de fases
+        fases = {}
+        for registro in datos:
+            fase = registro[5]  # Índice de la columna fase
+            if fase not in fases:
+                fases[fase] = {
+                    'valvulas': [],
+                    'inicio': None,
+                    'fin': None,
+                    'elementos': set()
+                }
+            
+            # Extraer solo el nombre del elemento de "Válvula X"
+            valvula = registro[0]
+            elemento = valvula.replace("Válvula ", "").strip() if "Válvula" in valvula else valvula
+            
+            fases[fase]['elementos'].add(elemento)
+            
+            # Determinar tiempos de inicio y fin
+            hora_instruccion = datetime.strptime(registro[3], '%Y-%m-%d %H:%M:%S')
+            if fases[fase]['inicio'] is None or hora_instruccion < fases[fase]['inicio']:
+                fases[fase]['inicio'] = hora_instruccion
+                
+            if registro[1] == 'C':  # Si está cerrado
+                if fases[fase]['fin'] is None or hora_instruccion > fases[fase]['fin']:
+                    fases[fase]['fin'] = hora_instruccion
+        
+        # Actualizar datos de fases para la animación
+        for fase, datos_fase in fases.items():
+            if fase not in self.fases_crecimiento:
+                # Nueva fase detectada
+                self.fases_crecimiento[fase] = {
+                    'elementos': list(datos_fase['elementos']),
+                    'tiempo_inicio': (datos_fase['inicio'] - fases[1]['inicio']).total_seconds() if 1 in fases else 0,
+                    'tiempo_fin': (datos_fase['fin'] - fases[1]['inicio']).total_seconds() if datos_fase['fin'] and 1 in fases else None,
+                    'espesor': 1.0,  # Espesor base para cada fase
+                    'color': self._obtener_color_fase(fase)
+                }
+        
+        # Actualizar animación
         tiempo_actual = time.time()
-        
-        # Solo actualizar cada segundo para evitar sobrecarga
-        if tiempo_actual - self.ultima_actualizacion < 1.0:
-            return
-            
-        self.ultima_actualizacion = tiempo_actual
-        
-        # Calcular tiempo transcurrido desde el inicio del proceso
         if self.tiempo_inicio_proceso is None:
             self.tiempo_inicio_proceso = tiempo_actual
+            
         tiempo_transcurrido = tiempo_actual - self.tiempo_inicio_proceso
         
-        # Determinar qué válvulas están abiertas y su tiempo de apertura
-        elementos_activos = [elem for elem, datos in self.estado_valvulas.items() 
-                            if datos['estado'] == 'A']
-        
-        # Simular crecimiento de capas (esto es una simplificación)
-        for elemento in elementos_activos:
-            # Añadir una nueva capa o aumentar el espesor de la última capa del mismo material
-            if not self.capas_crecimiento or self.capas_crecimiento[-1]['elemento'] != elemento:
-                # Nueva capa
-                self.capas_crecimiento.append({
-                    'elemento': elemento,
-                    'tiempo_inicio': tiempo_transcurrido,
-                    'espesor': 0.1,  # Espesor inicial
-                    'color': self._obtener_color_elemento(elemento)
-                })
-            else:
-                # Aumentar espesor de la capa existente
-                self.capas_crecimiento[-1]['espesor'] += 0.1
-        
-        # Dibujar las capas
-        self._dibujar_capas_crecimiento(tiempo_transcurrido)
+        # Solo actualizar la animación si ha pasado suficiente tiempo
+        if tiempo_actual - self.ultima_actualizacion >= 1.0:  # Actualizar cada segundo
+            self._dibujar_fases_crecimiento(tiempo_transcurrido)
+            self.ultima_actualizacion = tiempo_actual
 
-    def _obtener_color_elemento(self, elemento):
-        """Devuelve un color único para cada elemento"""
-        colores = {
-            'Al': 'silver',
-            'As': 'darkorange',
-            'Ga': 'dodgerblue',
-            'In': 'indigo',
-            'N': 'limegreen',
-            'Mn': 'hotpink',
-            'Be': 'teal',
-            'Mg': 'gold',
-            'Si': 'darkred'
-        }
-        return colores.get(elemento, 'gray')
+    def _obtener_color_fase(self, fase):
+        """Devuelve un color único para cada fase"""
+        colores = [
+            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+            '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+        ]
+        return colores[(int(fase) - 1) % len(colores)]
 
-    def _dibujar_capas_crecimiento(self, tiempo_transcurrido):
-        """Dibuja las capas de crecimiento en la gráfica"""
+    def _dibujar_fases_crecimiento(self, tiempo_transcurrido):
+        """Dibuja las fases de crecimiento en la gráfica"""
         self.ax_crecimiento.clear()
         
         # Configuración básica de la gráfica
-        self.ax_crecimiento.set_title(f"CRECIMIENTO DE CAPAS: {self.proceso_activo}", pad=10)
+        self.ax_crecimiento.set_title(f"CRECIMIENTO POR FASES: {self.proceso_activo}", pad=10, fontsize=14, weight='bold')
         self.ax_crecimiento.set_xlabel("Tiempo (segundos)", labelpad=10)
         self.ax_crecimiento.set_ylabel("Espesor (u.a.)", labelpad=10)
         self.ax_crecimiento.grid(True, linestyle='--', alpha=0.7)
         
-        # Ajustar límites
-        max_tiempo = max(100, tiempo_transcurrido + 10)  # Mínimo 100 segundos
-        max_espesor = sum(capa['espesor'] for capa in self.capas_crecimiento) + 5
+        if not self.fases_crecimiento:
+            self.ax_crecimiento.text(0.5, 0.5, 'No hay datos de fases para mostrar', 
+                                   horizontalalignment='center',
+                                   verticalalignment='center',
+                                   transform=self.ax_crecimiento.transAxes,
+                                   fontsize=12,
+                                   color='gray')
+            self.canvas_crecimiento.draw()
+            return
+        
+        # Calcular límites del gráfico
+        max_tiempo = max([fase['tiempo_inicio'] + 10 for fase in self.fases_crecimiento.values()] + [tiempo_transcurrido + 10])
+        max_espesor = len(self.fases_crecimiento) * 1.5 + 1
         self.ax_crecimiento.set_xlim(0, max_tiempo)
         self.ax_crecimiento.set_ylim(0, max_espesor)
         
-        # Dibujar capas
+        # Dibujar cada fase como una capa
         espesor_acumulado = 0
-        for capa in self.capas_crecimiento:
-            # Dibujar rectángulo para la capa
-            rect = Rectangle((capa['tiempo_inicio'], espesor_acumulado),
-                           tiempo_transcurrido - capa['tiempo_inicio'],
-                           capa['espesor'],
-                           facecolor=capa['color'],
-                           edgecolor='black',
-                           alpha=0.7)
-            self.ax_crecimiento.add_patch(rect)
-            
-            # Añadir etiqueta
-            self.ax_crecimiento.text(capa['tiempo_inicio'] + (tiempo_transcurrido - capa['tiempo_inicio'])/2,
-                                   espesor_acumulado + capa['espesor']/2,
-                                   capa['elemento'],
-                                   ha='center', va='center',
-                                   color='black',
-                                   fontsize=8)
-            
-            espesor_acumulado += capa['espesor']
+        for fase_num, fase_data in sorted(self.fases_crecimiento.items(), key=lambda x: int(x[0])):
+            # Determinar si la fase está activa, completada o pendiente
+            if tiempo_transcurrido >= fase_data['tiempo_inicio']:
+                if fase_data['tiempo_fin'] is None or tiempo_transcurrido <= fase_data['tiempo_fin']:
+                    # Fase activa
+                    tiempo_fin_dibujo = tiempo_transcurrido
+                    estado = "ACTIVA"
+                    alpha = 0.9
+                else:
+                    # Fase completada
+                    tiempo_fin_dibujo = fase_data['tiempo_fin']
+                    estado = "COMPLETADA"
+                    alpha = 0.7
+                
+                # Dibujar rectángulo para la fase
+                rect = Rectangle((fase_data['tiempo_inicio'], espesor_acumulado),
+                               tiempo_fin_dibujo - fase_data['tiempo_inicio'],
+                               fase_data['espesor'],
+                               facecolor=fase_data['color'],
+                               edgecolor='black',
+                               alpha=alpha)
+                self.ax_crecimiento.add_patch(rect)
+                
+                # Añadir etiqueta con información de la fase
+                texto = f"Fase {fase_num}\n({', '.join(fase_data['elementos'])})"
+                self.ax_crecimiento.text(fase_data['tiempo_inicio'] + (tiempo_fin_dibujo - fase_data['tiempo_inicio'])/2,
+                                       espesor_acumulado + fase_data['espesor']/2,
+                                       texto,
+                                       ha='center', va='center',
+                                       color='black',
+                                       fontsize=8,
+                                       bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
+                
+                espesor_acumulado += fase_data['espesor']
         
         # Dibujar línea de tiempo actual
-        self.ax_crecimiento.axvline(x=tiempo_transcurrido, color='red', linestyle='--', alpha=0.5)
+        self.ax_crecimiento.axvline(x=tiempo_transcurrido, color='red', linestyle='--', alpha=0.7, linewidth=2)
         
-        # Añadir leyenda de colores
+        # Añadir leyenda de fases
         handles = []
         labels = []
-        for elemento, color in {
-            'Al': 'silver',
-            'As': 'darkorange',
-            'Ga': 'dodgerblue',
-            'In': 'indigo',
-            'N': 'limegreen',
-            'Mn': 'hotpink',
-            'Be': 'teal',
-            'Mg': 'gold',
-            'Si': 'darkred'
-        }.items():
-            handles.append(Rectangle((0, 0), 1, 1, facecolor=color))
-            labels.append(elemento)
+        for fase_num, fase_data in sorted(self.fases_crecimiento.items(), key=lambda x: int(x[0])):
+            handles.append(Rectangle((0, 0), 1, 1, facecolor=fase_data['color']))
+            labels.append(f"Fase {fase_num} ({', '.join(fase_data['elementos'])})")
         
-        self.ax_crecimiento.legend(handles, labels, title="Materiales", 
+        self.ax_crecimiento.legend(handles, labels, title="Fases", 
                                  bbox_to_anchor=(1.05, 1), loc='upper left')
         
         self.fig_crecimiento.tight_layout()
         self.canvas_crecimiento.draw()
 
-    def _actualizar_grafica(self, datos):
-        """Actualiza la gráfica de estados con nuevos datos"""
-        try:
-            self.ax_estados.clear()
-            
-            if not datos:
-                self.ax_estados.set_title(f"{self.proceso_activo} - Sin datos", pad=10)
-                self.ax_estados.text(0.5, 0.5, 'No hay datos para mostrar', 
-                                   horizontalalignment='center',
-                                   verticalalignment='center',
-                                   transform=self.ax_estados.transAxes,
-                                   fontsize=12,
-                                   color='gray')
-                self.canvas_estados.draw()
-                return
-                
-            # Procesamiento de datos
-            valvulas = sorted(list(set(d[0] for d in datos)))
-            tiempos = [datetime.strptime(d[3], '%Y-%m-%d %H:%M:%S') for d in datos]
-            tiempo_inicio = tiempos[0]
-            segundos = [(t - tiempo_inicio).total_seconds() for t in tiempos]
-            
-            # Establecer tiempo de inicio para la animación de crecimiento
-            if self.tiempo_inicio_proceso is None:
-                self.tiempo_inicio_proceso = time.time()
-                self.capas_crecimiento = []  # Reiniciar capas
-                self.ultima_actualizacion = 0
-            
-            # Crear gráfico de estados
-            for i, valvula in enumerate(valvulas):
-                estados = []
-                tiempos_valvula = []
-                for d in datos:
-                    if d[0] == valvula:
-                        estado = 1 if d[1] == 'A' else 0
-                        estados.append(estado + i*0.1)  # Desplazamiento vertical
-                        tiempos_valvula.append((datetime.strptime(d[3], '%Y-%m-%d %H:%M:%S') - tiempo_inicio).total_seconds())
-                
-                self.ax_estados.plot(tiempos_valvula, estados, 'o-', label=valvula, markersize=8, linewidth=2)
-            
-            # Configurar gráfica
-            self.ax_estados.set_title(f"ESTADO DE VÁLVULAS: {self.proceso_activo}", pad=10)
-            self.ax_estados.set_xlabel("Tiempo transcurrido (segundos)", labelpad=10)
-            self.ax_estados.set_ylabel("Estado de válvulas", labelpad=10)
-            self.ax_estados.grid(True, linestyle='--', alpha=0.7)
-            self.ax_estados.legend(loc='upper right', bbox_to_anchor=(1.15, 1))
-            
-            # Ajustar límites y ticks
-            self.ax_estados.set_yticks([0, 1])
-            self.ax_estados.set_yticklabels(["Cerrado", "Abierto"])
-            self.ax_estados.set_ylim(-0.5, len(valvulas)*0.1 + 1.5)
-            
-            self.fig_estados.tight_layout()
-            self.canvas_estados.draw()
-            
-        except Exception as e:
-            print(f"Error al actualizar gráfica: {e}")
-            self.estado_label.configure(text="Estado: Error gráfica", fg_color="#dc3545")
+    def procesar_mensaje(self, mensaje):
+        """Procesa mensajes seriales para actualizar el estado de las válvulas"""
+        # Este método puede usarse para actualizaciones en tiempo real si es necesario
+        pass
 
     def iniciar_monitoreo(self):
         """Inicia el monitoreo del proceso seleccionado"""
@@ -447,8 +350,6 @@ class FormMonitoreo(ctk.CTkFrame):
             self.detener_monitoreo.set()
             if hasattr(self, '_hilo_monitoreo') and self._hilo_monitoreo is not None and self._hilo_monitoreo.is_alive():
                 self._hilo_monitoreo.join(timeout=1)
-            if hasattr(self, 'fig_estados'):
-                plt.close(self.fig_estados)
             if hasattr(self, 'fig_crecimiento'):
                 plt.close(self.fig_crecimiento)
             # Desregistrar este panel para dejar de recibir mensajes seriales
