@@ -598,6 +598,8 @@ class FormNuevoProceso(ctk.CTkFrame):
                     if self.master_panel.enviar_comando_serial("YYYYYYYYYYYYYYYY"): # Comando de reanudar
                         print("Comando para reanudar enviado a ESP32 = YYYYYYYYYYYYYYYY")
 
+       
+
     def paro_emergencia(self):
         """Detiene todos los procesos y envía señal de emergencia a la ESP32"""
         # Detener hilo de ejecución
@@ -605,7 +607,10 @@ class FormNuevoProceso(ctk.CTkFrame):
             self.proceso_en_ejecucion = False
             if self.hilo_proceso and self.hilo_proceso.is_alive():
                 self.hilo_proceso.join(timeout=1)
-
+        
+        # Reiniciar campos
+        self.reiniciar_rutina()
+        
         # Enviar comando de emergencia
         if self.master_panel.enviar_comando_serial("PPPPPPPPPPPPPPPP"):  # 16 'P'
             self.master_panel.liberar_bloqueo_hardware()
