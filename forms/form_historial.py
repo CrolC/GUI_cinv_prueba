@@ -7,8 +7,8 @@ from tkinter import ttk
 from fpdf import FPDF
 import os
 
-#eliminar columna de proceso id (ver como mostrar creciento por conjunto)
-#agregar entrada de temperatura/otros parametros
+
+
 class FormHistorial(ctk.CTkFrame):
     def __init__(self, panel_principal, user_id):  
         super().__init__(panel_principal)
@@ -307,8 +307,11 @@ class FormHistorial(ctk.CTkFrame):
             pdf = FPDF()
             pdf.add_page()
             
-            # 1. Agregar marca de agua (fondo)
-            watermark_path = r"D:\Python_Proyectos\INTER_C3\imagenes\marcadeagua.png"
+            # Marca de agua (fondo)
+            
+            BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  
+            watermark_path = os.path.join(BASE_DIR, "imagenes", "marcadeagua.png")
+
             if os.path.exists(watermark_path):
                 try:
                     # Configurar transparencia
