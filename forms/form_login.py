@@ -3,7 +3,6 @@ from tkinter import messagebox
 import sqlite3
 import sys
 import os
-sys.path.append('d:/Python_Proyectos/INTER_C3')
 import util.generic as utl
 from forms.form_master import MasterPanel
 
@@ -148,7 +147,10 @@ class App:
         frame_logo = ctk.CTkFrame(self.ventana, width=400, corner_radius=0, fg_color="#06918A")  
         frame_logo.pack(side="left", expand=True, fill="both")
 
-        logo = utl.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/logo.png", (200, 200))
+        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  
+        logo_path = os.path.join(BASE_DIR, "imagenes", "logo.png")
+        logo = utl.leer_imagen(logo_path, (200, 200))
+
         label_logo = ctk.CTkLabel(frame_logo, image=logo, text="")
         label_logo.place(relx=0.5, rely=0.5, anchor="center")
 
