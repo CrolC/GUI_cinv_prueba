@@ -7,8 +7,9 @@ import time
 import serial
 import serial.tools.list_ports
 import tkinter.filedialog as filedialog
+import os 
 from tkinter import messagebox
-sys.path.append('d:/Python_Proyectos/INTER_C3')
+#sys.path.append('d:/Python_Proyectos/INTER_C3')
 from forms.form_nuevoproceso import FormNuevoProceso
 from forms.form_paneldecontrol import FormPaneldeControl
 from forms.form_historial import FormHistorial
@@ -19,6 +20,7 @@ COLOR_BARRA_SUPERIOR = "#1a1e23"
 COLOR_MENU_LATERAL = "#1f3334"
 COLOR_CUERPO_PRINCIPAL = "#f4f8f7"
 COLOR_MENU_CURSOR_ENCIMA = "#18a9b1"
+
 
 class MasterPanel(ctk.CTk):
     def __init__(self, user_id):
@@ -43,7 +45,10 @@ class MasterPanel(ctk.CTk):
         
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.config_window()
-        self.logo = self.leer_imagen("d:/Python_Proyectos/INTER_C3/imagenes/logocinves_predeterm.png", (400, 400))
+
+        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        logo_path = os.path.join(BASE_DIR, "imagenes", "logocinves_predeterm.png")
+        self.logo = self.leer_imagen(logo_path, (400, 400))
 
 
         # Cargar imagen de perfil si existe
@@ -52,7 +57,8 @@ class MasterPanel(ctk.CTk):
             self.perfil = self.leer_imagen_circular(self.perfil_path, (100, 100))
         else:
             # Imagen por defecto
-            self.perfil = self.leer_imagen_circular("d:/Python_Proyectos/INTER_C3/imagenes/Perfil.png", (100, 100))
+            perfil_path = os.path.join(BASE_DIR, "imagenes", "Perfil.png")
+            self.perfil = self.leer_imagen_circular(perfil_path, (100, 100))
         
         self.paneles()
         self.controles_barra_superior()
