@@ -199,7 +199,7 @@ class FormHistorial(ctk.CTkFrame):
             
         item = self.treeview.item(seleccion)
         valores = item['values']
-        proceso_id = valores[7]
+        proceso_id = valores[8]  # Cambiado de 7 a 8 porque proceso_id es la columna 9 (índice 8)
         
         if not self.nombre_crecimiento_entry.get() or not self.responsables_entry.get() or not self.sustrato_entry.get():
             messagebox.showwarning("Advertencia", "Por favor complete todos los campos del reporte")
@@ -230,6 +230,7 @@ class FormHistorial(ctk.CTkFrame):
             if not detalles:
                 messagebox.showwarning("Advertencia", "No se encontraron detalles para este registro")
                 return
+        
             
             # Procesamiento de datos
             fecha_inicio_proceso = min(det[0] for det in detalles)
