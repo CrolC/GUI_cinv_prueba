@@ -441,7 +441,7 @@ class MasterPanel(ctk.CTk):
             
             self.after(0, lambda: messagebox.showwarning(
                 "Advertencia", 
-                "No se encontró un dispositivo ESP32 conectado. La aplicación continuará en modo sin conexión."
+                "No se encontró un dispositivo de control conectado. La aplicación continuará en modo sin conexión."
             ))
             return False
             
