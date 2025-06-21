@@ -215,8 +215,8 @@ class FormNuevoProceso(ctk.CTkFrame):
         ctk.CTkLabel(header, text="Apertura", width=80).pack(side="left", padx=(20,5))
         ctk.CTkLabel(header, text="Cierre", width=80).pack(side="left", padx=(30,5))
         ctk.CTkLabel(header, text="Ciclos", width=60).pack(side="left", padx=(40,5))
-        ctk.CTkLabel(header, text="Dirección", width=100).pack(side="left", padx=(15,5))
-        ctk.CTkLabel(header, text="Progreso", width=100).pack(side="left", padx=(5,5))
+        ctk.CTkLabel(header, text="Progreso", width=100).pack(side="left", padx=(15,5))
+        #ctk.CTkLabel(header, text="Direccion", width=100).pack(side="left", padx=(5,5))
 
         for i, elemento in enumerate(self.elementos):
             fila = ctk.CTkFrame(frame_fase)
@@ -263,15 +263,15 @@ class FormNuevoProceso(ctk.CTkFrame):
             dir_var = ctk.StringVar(value="N")
             
             # Primero creamos ambos botones
-            btn_izq = ctk.CTkButton(fila, text="⭯", width=40, state="disabled")
-            btn_der = ctk.CTkButton(fila, text="⭮", width=40, state="disabled")
+            #btn_izq = ctk.CTkButton(fila, text="⭯", width=40, state="disabled")
+            #btn_der = ctk.CTkButton(fila, text="⭮", width=40, state="disabled")
             
             # Luego configuramos los comandos
-            btn_izq.configure(command=lambda v=dir_var, bi=btn_izq, bd=btn_der: self.seleccionar_direccion(v, bi, bd, "I"))
-            btn_der.configure(command=lambda v=dir_var, bi=btn_izq, bd=btn_der: self.seleccionar_direccion(v, bi, bd, "D"))
+            #btn_izq.configure(command=lambda v=dir_var, bi=btn_izq, bd=btn_der: self.seleccionar_direccion(v, bi, bd, "I"))
+            #btn_der.configure(command=lambda v=dir_var, bi=btn_izq, bd=btn_der: self.seleccionar_direccion(v, bi, bd, "D"))
             
-            btn_izq.pack(side="left", padx=5)
-            btn_der.pack(side="left", padx=5)
+            #btn_izq.pack(side="left", padx=5)
+            #btn_der.pack(side="left", padx=5)
 
             # Progreso
             progreso = ctk.CTkLabel(fila, text="0/0", width=100)
@@ -281,7 +281,7 @@ class FormNuevoProceso(ctk.CTkFrame):
             campos_valvula = [
                 apertura, apertura_unidad, 
                 cierre, cierre_unidad, 
-                ciclos, btn_izq, btn_der
+                ciclos #, btn_izq, btn_der
             ]
             
             # Configurar comando para toggle de campos
@@ -298,8 +298,8 @@ class FormNuevoProceso(ctk.CTkFrame):
                 'progreso': progreso,
                 'ciclos_completados': 0,
                 'tiempo_transcurrido': 0,
-                'btn_izq': btn_izq,
-                'btn_der': btn_der,
+                'btn_izq': '',
+                'btn_der': '',
                 'elemento': elemento  # Guardamos el nombre del elemento
             })
 
