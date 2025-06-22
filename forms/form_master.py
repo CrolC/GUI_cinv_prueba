@@ -41,7 +41,7 @@ class MasterPanel(ctk.CTk):
         self.serial_running = False
         self.serial_buffer = ""
         self.serial_timeout = 2
-        self.max_command_length = 1500
+        self.max_command_length = 16000000000
         
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.config_window()

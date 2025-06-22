@@ -746,7 +746,7 @@ class FormNuevoProceso(ctk.CTkFrame):
                 
                 if cadenas:
                     fase_cadena = "".join(cadenas)
-                    if len(fase_cadena) > 64:  # Per phase limit
+                    if len(fase_cadena) > 161:  # Per phase limit
                         messagebox.showerror(
                             "Error", 
                             f"Comando para fase {nombre_fase} es demasiado largo"
@@ -756,8 +756,8 @@ class FormNuevoProceso(ctk.CTkFrame):
 
             # Join all phases
             cadena_final = "&".join(cadenas_fases) if cadenas_fases else ""
-            
-            if len(cadena_final) > 128:  # Total limit
+
+            if len(cadena_final) > 16000:  # Total limit
                 messagebox.showerror("Error", "Comando completo es demasiado largo")
                 return False
                 
