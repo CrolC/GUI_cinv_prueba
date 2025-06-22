@@ -6,6 +6,7 @@ import os
 import util.generic as utl
 from forms.form_master import MasterPanel
 
+CODIGO_SEGURIDAD = "u6404c3101"  # Código de seguridad para registrarse
 
 def inicializar_base_datos():
     conn = sqlite3.connect("usuarios.db")
@@ -96,12 +97,19 @@ class App:
         else:
             messagebox.showerror(message="Usuario o contraseña incorrectos", title="Error")
 
+
     def registrar_usuario(self):
         usu = self.usuario_registro.get()
         password = self.password_registro.get()
+        codigo = self.codigo_seguridad_entry.get()
 
-        if not usu or not password:
+        if not all([usu, password, codigo]):
             messagebox.showwarning("Error", "Todos los campos son obligatorios")
+            return
+
+        # Verificar código de seguridad
+        if codigo != CODIGO_SEGURIDAD:
+            messagebox.showerror("Error", "Código de seguridad incorrecto")
             return
 
         conn = sqlite3.connect("usuarios.db")
@@ -116,18 +124,46 @@ class App:
             self.ventana_registro.destroy()
         conn.close()
 
+
     def mostrar_ventana_registro(self):
         self.ventana_registro = ctk.CTkToplevel(self.ventana)
         self.ventana_registro.title("Registrar usuario")
-        self.ventana_registro.geometry("400x300")
+        self.ventana_registro.geometry("400x400")  # Aumentamos el tamaño para el nuevo campo
         self.ventana_registro.protocol("WM_DELETE_WINDOW", self.ventana_registro.destroy)
 
-        self.usuario_registro = ctk.CTkEntry(self.ventana_registro, placeholder_text="Usuario")
-        self.usuario_registro.pack(pady=10)
-        self.password_registro = ctk.CTkEntry(self.ventana_registro, placeholder_text="Contraseña", show="*")
-        self.password_registro.pack(pady=10)
+        # Frame principal para organizar mejor los elementos
+        frame_principal = ctk.CTkFrame(self.ventana_registro)
+        frame_principal.pack(pady=20, padx=20, fill="both", expand=True)
 
-        registrar_btn = ctk.CTkButton(self.ventana_registro, text="Registrar", command=self.registrar_usuario, fg_color="#06918A")
+        # Título
+        ctk.CTkLabel(
+            frame_principal, 
+            text="Registro de nuevo usuario",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(pady=(0, 20))
+
+        # Campo de usuario
+        ctk.CTkLabel(frame_principal, text="Usuario:").pack()
+        self.usuario_registro = ctk.CTkEntry(frame_principal, width=200)
+        self.usuario_registro.pack(pady=5)
+
+        # Campo de contraseña
+        ctk.CTkLabel(frame_principal, text="Contraseña:").pack()
+        self.password_registro = ctk.CTkEntry(frame_principal, width=200, show="*")
+        self.password_registro.pack(pady=5)
+
+        # Campo de código de seguridad
+        ctk.CTkLabel(frame_principal, text="Código de seguridad:").pack()
+        self.codigo_seguridad_entry = ctk.CTkEntry(frame_principal, width=200)
+        self.codigo_seguridad_entry.pack(pady=5)
+
+        # Botón de registro
+        registrar_btn = ctk.CTkButton(
+            frame_principal, 
+            text="Registrar", 
+            command=self.registrar_usuario, 
+            fg_color="#06918A"
+        )
         registrar_btn.pack(pady=20)
 
     def __init__(self):
