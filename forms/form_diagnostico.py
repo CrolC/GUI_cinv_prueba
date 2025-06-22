@@ -3,6 +3,7 @@ import threading
 import time
 from tkinter import messagebox
 import re
+#
 
 class FormDiagnostico(ctk.CTkFrame):
     def __init__(self, panel_principal, user_id):
