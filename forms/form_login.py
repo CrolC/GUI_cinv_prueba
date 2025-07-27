@@ -6,6 +6,8 @@ import os
 import util.generic as utl
 from forms.form_master import MasterPanel
 
+#AJUSTAR TAMAÑO DE LA VENTANA DE REGISTRO DE USUARIO
+
 CODIGO_SEGURIDAD = "u6404c3101"  # Código de seguridad para registrarse
 
 def inicializar_base_datos():
@@ -135,26 +137,19 @@ class App:
         frame_principal = ctk.CTkFrame(self.ventana_registro)
         frame_principal.pack(pady=20, padx=20, fill="both", expand=True)
 
-        # Título
-        ctk.CTkLabel(
-            frame_principal, 
-            text="Registro de nuevo usuario",
-            font=ctk.CTkFont(size=16, weight="bold")
-        ).pack(pady=(0, 20))
-
         # Campo de usuario
-        ctk.CTkLabel(frame_principal, text="Usuario:").pack()
-        self.usuario_registro = ctk.CTkEntry(frame_principal, width=200)
+        #ctk.CTkLabel(frame_principal, text="Usuario:").pack()
+        self.usuario_registro = ctk.CTkEntry(frame_principal, width=200, placeholder_text="usuario")
         self.usuario_registro.pack(pady=5)
 
         # Campo de contraseña
-        ctk.CTkLabel(frame_principal, text="Contraseña:").pack()
-        self.password_registro = ctk.CTkEntry(frame_principal, width=200, show="*")
+        #ctk.CTkLabel(frame_principal, text="Contraseña:").pack()
+        self.password_registro = ctk.CTkEntry(frame_principal, width=200, show="*", placeholder_text="contraseña")
         self.password_registro.pack(pady=5)
 
         # Campo de código de seguridad
-        ctk.CTkLabel(frame_principal, text="Código de seguridad:").pack()
-        self.codigo_seguridad_entry = ctk.CTkEntry(frame_principal, width=200)
+        #ctk.CTkLabel(frame_principal, text="Código de seguridad:").pack()
+        self.codigo_seguridad_entry = ctk.CTkEntry(frame_principal, width=200,show="*", placeholder_text="código de seguridad")
         self.codigo_seguridad_entry.pack(pady=5)
 
         # Botón de registro
