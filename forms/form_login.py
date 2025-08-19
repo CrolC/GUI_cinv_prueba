@@ -130,7 +130,7 @@ class App:
     def mostrar_ventana_registro(self):
         self.ventana_registro = ctk.CTkToplevel(self.ventana)
         self.ventana_registro.title("Registrar usuario")
-        self.ventana_registro.geometry("400x400")  # Aumentamos el tamaño para el nuevo campo
+        self.ventana_registro.geometry("400x250")  # Aumentamos el tamaño para el nuevo campo
         self.ventana_registro.protocol("WM_DELETE_WINDOW", self.ventana_registro.destroy)
 
         # Frame principal para organizar mejor los elementos
